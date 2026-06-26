@@ -661,6 +661,55 @@ function PaletteListView({
     }
   };
 
+  // When the user drops in the gap, padding, or empty area below
+  // the last card, no PaletteCard receives the drop event. Use the
+  // container as a fallback drop target and pick a target card by
+  // mouse-Y position (or append to end if past the last card).
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const pickTargetByY = (clientY: number): string | null => {
+    const root = containerRef.current;
+    if (!root) return null;
+    const cards = Array.from(root.querySelectorAll<HTMLElement>('[data-palette-id]'));
+    if (cards.length === 0) return null;
+    // If the mouse is below the last card, append to end.
+    const lastRect = cards[cards.length - 1].getBoundingClientRect();
+    if (clientY > lastRect.bottom) {
+      return lastRect.top > 0 ? cards[cards.length - 1].dataset.paletteId ?? null : null;
+    }
+    // Otherwise pick the card whose top is closest to the cursor.
+    let best: { id: string; dist: number } | null = null;
+    for (const el of cards) {
+      const r = el.getBoundingClientRect();
+      // Skip the source card — drop on self is a no-op.
+      const id = el.dataset.paletteId;
+      if (!id || id === draggingId) continue;
+      const mid = r.top + r.height / 2;
+      const dist = Math.abs(clientY - mid);
+      if (best === null || dist < best.dist) {
+        best = { id, dist };
+      }
+    }
+    return best?.id ?? null;
+  };
+  const handleContainerDragOver = (e: React.DragEvent) => {
+    if (!draggingId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const id = pickTargetByY(e.clientY);
+    if (id && id !== dragOverId) setDragOverId(id);
+  };
+  const handleContainerDrop = (e: React.DragEvent) => {
+    if (!draggingId) return;
+    e.preventDefault();
+    const targetId = pickTargetByY(e.clientY);
+    if (!targetId) {
+      setDraggingId(null);
+      setDragOverId(null);
+      return;
+    }
+    handleDrop(targetId, e);
+  };
+
   if (palettes.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-muted text-sm gap-3">
@@ -685,7 +734,12 @@ function PaletteListView({
     );
   }
   return (
-    <div className="p-4 space-y-2.5 max-w-3xl mx-auto">
+    <div
+      ref={containerRef}
+      onDragOver={handleContainerDragOver}
+      onDrop={handleContainerDrop}
+      className="p-4 space-y-2.5 max-w-3xl mx-auto"
+    >
       {palettes.map((p) => (
         <PaletteCard
           key={p.id}

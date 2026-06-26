@@ -37,6 +37,8 @@ export function PaletteCard({
   return (
     <div
       draggable
+      data-palette-id={palette.id}
+      data-testid="palette-card"
       onClick={onOpen}
       onDragStart={(e) => onDragStart(palette.id, e)}
       onDragEnd={onDragEnd}
