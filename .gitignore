@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+src-tauri/target/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Claude Code local state
+.claude/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Tauri generated
+src-tauri/gen/schemas/
+
+# Python (screenshot helper)
+__pycache__/
+*.pyc
+.pytest_cache/

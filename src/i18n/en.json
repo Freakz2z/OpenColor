@@ -1,0 +1,143 @@
+{
+  "app": {
+    "name": "OpenColor",
+    "tagline": "Lightweight color picker for VibeCoding",
+    "debugLogTitle": "OpenColor debug log ({{count}})"
+  },
+  "picker": {
+    "hint": "click to pick · Esc cancel"
+  },
+  "toolbar": {
+    "settings": "Settings",
+    "pick": "Pick",
+    "pickHotkey": "Pick (⌘⇧C)",
+    "pickDemo": "Pick (demo: random)",
+    "stopPick": "Stop picking (Esc)",
+    "export": "Export",
+    "rename": "Rename",
+    "deletePalette": "Delete palette",
+    "back": "Back",
+    "new": "New",
+    "fromImage": "Import from image",
+    "addColor": "Add color"
+  },
+  "empty": {
+    "noPalettes": "No palettes yet",
+    "noPalettesHint": "Create your first palette to get started",
+    "openExistingHint": "Pick a palette from the toolbar",
+    "noColors": "No colors yet",
+    "noColorsHint": "Press ⌘⇧C to start picking from anywhere on screen",
+    "notFound": "Palette not found",
+    "backToList": "Back to list"
+  },
+  "card": {
+    "colors": "{{count}} color",
+    "colors_other": "{{count}} colors",
+    "empty": "Empty",
+    "more": "+{{count}}",
+    "open": "Open",
+    "delete": "Delete",
+    "emptyHint": "Empty — open and start picking"
+  },
+  "colorCard": {
+    "unnamed": "Unnamed",
+    "copyHex": "Copy HEX",
+    "copyRgb": "Copy RGB",
+    "delete": "Delete"
+  },
+  "colorEditor": {
+    "name": "Name",
+    "namePlaceholder": "e.g. Primary / Warning red / VibeCoder accent",
+    "picker": "Picker",
+    "hex": "HEX",
+    "hexError": "Invalid hex (e.g. #FF6B6B)",
+    "family": "Color family",
+    "note": "Note (optional)",
+    "notePlaceholder": "e.g. Used for CTA button / dark mode alt",
+    "cancel": "Cancel",
+    "save": "Save",
+    "update": "Update"
+  },
+  "family": {
+    "red": "Red",
+    "orange": "Orange",
+    "yellow": "Yellow",
+    "green": "Green",
+    "cyan": "Cyan",
+    "blue": "Blue",
+    "purple": "Purple",
+    "pink": "Pink",
+    "brown": "Brown",
+    "gray": "Gray",
+    "neutral": "Neutral"
+  },
+  "dialog": {
+    "newPalette": "New palette",
+    "newPalettePlaceholder": "e.g. VibeCoding primary",
+    "renamePalette": "Rename palette",
+    "deletePalette": "Delete palette",
+    "deletePaletteBody": "Delete \"{{name}}\" and all its {{count}} color(s)? This cannot be undone.",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "ok": "OK"
+  },
+  "export": {
+    "title": "Export as natural language",
+    "subtitle": "Agent-friendly plain text — paste into any AI prompt",
+    "close": "Close",
+    "copy": "Copy to clipboard",
+    "copied": "✓ Copied",
+    "chars": "Characters: {{count}}"
+  },
+  "imageImport": {
+    "title": "Import colors from image",
+    "subtitle": "Pick an image; we extract the dominant colors",
+    "choose": "Choose image",
+    "noImage": "No image selected",
+    "extracting": "Extracting…",
+    "count": "{{count}} dominant colors",
+    "selectAll": "Add all",
+    "clear": "Clear",
+    "addSelected": "Add {{count}} color",
+    "addSelected_other": "Add {{count}} colors",
+    "failLoad": "Failed to load image: {{error}}",
+    "failExtract": "Failed to extract colors"
+  },
+  "permission": {
+    "deniedTitle": "Screen capture permission required",
+    "deniedBodyMac": "macOS requires OpenColor to have Screen Recording permission to pick colors from anywhere on screen.",
+    "deniedBodyWin": "Color picking on Windows failed to initialize. Try restarting the app or updating your graphics driver.",
+    "deniedBodyLinux": "Color picking on Linux failed to initialize. Make sure the current session is X11 and check screenshot/input permissions.",
+    "unsupportedTitle": "Screen picking not supported on this platform",
+    "unsupportedBody": "You can still enter HEX manually or paste a color from a screenshot.",
+    "unsupportedBodyWin": "Screen picking could not initialize in this Windows environment. Try restarting the app or updating system graphics components.",
+    "unsupportedBodyLinux": "Screen picking could not initialize in this Linux environment. OpenColor currently targets X11 sessions.",
+    "unsupportedBodyWayland": "A Linux Wayland session was detected. The current picker depends on global pointer hooks, which Wayland restricts by default. Switch to an X11 session to use screen picking.",
+    "openSettings": "Open System Settings"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "languageHint": "Interface language",
+    "theme": "Theme",
+    "themeAuto": "Auto",
+    "themeDark": "Dark",
+    "themeLight": "Light",
+    "about": "About",
+    "version": "Version",
+    "done": "Done",
+    "langLabel": "Interface language"
+  },
+  "status": {
+    "loadedFail": "Load failed: {{error}}",
+    "createFail": "Create failed: {{error}}",
+    "pickFail": "Failed to start picker: {{error}}",
+    "pickUnavailable": "Screen picking is unavailable for the current platform or permission state",
+    "noPaletteForPick": "Create or open a palette first",
+    "pickDemoHint": "Demo mode: picking will insert a random color from the demo set",
+    "demo": "Demo mode: data is not persisted, UI preview only",
+    "addedColors": "Added {{count}} color",
+    "addedColors_other": "Added {{count}} colors"
+  }
+}

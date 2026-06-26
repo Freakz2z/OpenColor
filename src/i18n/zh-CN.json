@@ -1,0 +1,143 @@
+{
+  "app": {
+    "name": "OpenColor",
+    "tagline": "VibeCoding 配色体系提色器",
+    "debugLogTitle": "OpenColor 调试日志 ({{count}})"
+  },
+  "picker": {
+    "hint": "点击取色 · Esc 取消"
+  },
+  "toolbar": {
+    "settings": "设置",
+    "pick": "取色",
+    "pickHotkey": "取色 (⌘⇧C)",
+    "pickDemo": "取色 (演示：随机色)",
+    "stopPick": "停止取色 (Esc)",
+    "export": "导出",
+    "rename": "重命名",
+    "deletePalette": "删除调色板",
+    "back": "返回",
+    "new": "新建",
+    "fromImage": "从图片导入",
+    "addColor": "添加颜色"
+  },
+  "empty": {
+    "noPalettes": "还没有调色板",
+    "noPalettesHint": "创建你的第一个调色板开始使用",
+    "openExistingHint": "在顶栏选择一个调色板",
+    "noColors": "还没有颜色",
+    "noColorsHint": "按 ⌘⇧C 从屏幕任意位置开始取色",
+    "notFound": "调色板不存在",
+    "backToList": "返回列表"
+  },
+  "card": {
+    "colors": "{{count}} 个颜色",
+    "colors_other": "{{count}} 个颜色",
+    "empty": "空",
+    "more": "+{{count}}",
+    "open": "打开",
+    "delete": "删除",
+    "emptyHint": "空 — 打开后开始取色"
+  },
+  "colorCard": {
+    "unnamed": "未命名",
+    "copyHex": "复制 HEX",
+    "copyRgb": "复制 RGB",
+    "delete": "删除"
+  },
+  "colorEditor": {
+    "name": "名称",
+    "namePlaceholder": "如: 主色 / 警告红 / VibeCoder accent",
+    "picker": "选色器",
+    "hex": "HEX",
+    "hexError": "HEX 无效 (例: #FF6B6B)",
+    "family": "色系",
+    "note": "备注 (可选)",
+    "notePlaceholder": "如: 用于 CTA 按钮 / 暗色模式备选",
+    "cancel": "取消",
+    "save": "保存",
+    "update": "更新"
+  },
+  "family": {
+    "red": "红",
+    "orange": "橙",
+    "yellow": "黄",
+    "green": "绿",
+    "cyan": "青",
+    "blue": "蓝",
+    "purple": "紫",
+    "pink": "粉",
+    "brown": "棕",
+    "gray": "灰",
+    "neutral": "中性"
+  },
+  "dialog": {
+    "newPalette": "新建调色板",
+    "newPalettePlaceholder": "例如: VibeCoding 主色板",
+    "renamePalette": "重命名调色板",
+    "deletePalette": "删除调色板",
+    "deletePaletteBody": "确定要删除 \"{{name}}\" 及其全部 {{count}} 个颜色吗？此操作无法撤销。",
+    "cancel": "取消",
+    "confirm": "确定",
+    "delete": "删除",
+    "ok": "OK"
+  },
+  "export": {
+    "title": "导出为自然语言",
+    "subtitle": "Agent 友好的纯文本描述 — 可直接粘贴到任何 AI 提示词",
+    "close": "关闭",
+    "copy": "复制到剪贴板",
+    "copied": "✓ 已复制",
+    "chars": "字符数: {{count}}"
+  },
+  "imageImport": {
+    "title": "从图片导入颜色",
+    "subtitle": "选择图片，我们提取主色",
+    "choose": "选择图片",
+    "noImage": "未选择图片",
+    "extracting": "提取中…",
+    "count": "提取到 {{count}} 个主色",
+    "selectAll": "全部添加",
+    "clear": "清空",
+    "addSelected": "添加 {{count}} 个颜色",
+    "addSelected_other": "添加 {{count}} 个颜色",
+    "failLoad": "加载图片失败: {{error}}",
+    "failExtract": "提取颜色失败"
+  },
+  "permission": {
+    "deniedTitle": "需要屏幕录制权限",
+    "deniedBodyMac": "macOS 要求授予 OpenColor 屏幕录制权限后才能从任何位置取色。",
+    "deniedBodyWin": "Windows 取色器初始化失败, 请尝试重启应用或更新显卡驱动。",
+    "deniedBodyLinux": "Linux 取色器初始化失败。请确认当前会话是 X11, 并检查系统截图/输入权限。",
+    "unsupportedTitle": "当前平台暂不支持屏幕取色",
+    "unsupportedBody": "你可以手动输入 HEX 或粘贴屏幕截图中的颜色。",
+    "unsupportedBodyWin": "Windows 当前环境未能初始化屏幕取色。请尝试重启应用或更新系统图形组件。",
+    "unsupportedBodyLinux": "当前 Linux 环境未能初始化屏幕取色。OpenColor 目前主要支持 X11 会话。",
+    "unsupportedBodyWayland": "检测到 Linux Wayland 会话。当前取色实现依赖全局指针监听, Wayland 默认限制此能力。请切换到 X11 会话后使用取色。",
+    "openSettings": "打开系统设置"
+  },
+  "settings": {
+    "title": "设置",
+    "language": "语言",
+    "languageHint": "界面语言",
+    "theme": "主题",
+    "themeAuto": "跟随系统",
+    "themeDark": "深色",
+    "themeLight": "浅色",
+    "about": "关于",
+    "version": "版本",
+    "done": "完成",
+    "langLabel": "界面语言"
+  },
+  "status": {
+    "loadedFail": "加载失败: {{error}}",
+    "createFail": "创建失败: {{error}}",
+    "pickFail": "启动取色器失败: {{error}}",
+    "pickUnavailable": "当前平台或权限状态暂不可用, 无法启动屏幕取色",
+    "noPaletteForPick": "先创建或打开一个调色板",
+    "pickDemoHint": "演示模式：取色会从示例色板中随机选一个",
+    "demo": "演示模式: 数据不会持久化, 仅用于预览 UI",
+    "addedColors": "已添加 {{count}} 个颜色",
+    "addedColors_other": "已添加 {{count}} 个颜色"
+  }
+}

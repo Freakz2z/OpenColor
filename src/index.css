@@ -1,0 +1,105 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-app: #f7f8fa;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f4f5f7;
+  --bg-elevated: #ffffff;
+  --bg-toolbar: rgba(255, 255, 255, 0.85);
+  --bg-input: #f4f5f7;
+  --border-default: #e5e7eb;
+  --border-strong: #d4d4d8;
+  --text-primary: #18181b;
+  --text-secondary: #52525b;
+  --text-muted: #a1a1aa;
+  --text-on-accent: #ffffff;
+  /* Accent is intentionally a neutral dark grey so primary action buttons
+     (Save / OK / Confirm) read as monochrome, not colorful. The soft
+     variants below are subtle greys for selected-state highlight. */
+  --accent: #18181b;
+  --accent-soft: rgba(24, 24, 27, 0.06);
+  --accent-ring: rgba(24, 24, 27, 0.18);
+  --danger: #18181b;
+  --danger-soft: rgba(24, 24, 27, 0.06);
+  --warn-bg: rgba(245, 158, 11, 0.15);
+  --warn-text: #b45309;
+  --warn-border: rgba(245, 158, 11, 0.3);
+  --scrollbar: #d4d4d8;
+  --scrollbar-hover: #a1a1aa;
+  color-scheme: light;
+}
+
+html.dark {
+  --bg-app: #0f1115;
+  --bg-card: #18181b;
+  --bg-card-hover: #27272a;
+  --bg-elevated: #1c1c20;
+  --bg-toolbar: rgba(10, 10, 14, 0.7);
+  --bg-input: #27272a;
+  --border-default: #27272a;
+  --border-strong: #3f3f46;
+  --text-primary: #e5e7eb;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --text-on-accent: #18181b;
+  --accent: #f4f4f5;
+  --accent-soft: rgba(244, 244, 245, 0.08);
+  --accent-ring: rgba(244, 244, 245, 0.22);
+  --danger: #f4f4f5;
+  --danger-soft: rgba(244, 244, 245, 0.08);
+  --warn-bg: rgba(245, 158, 11, 0.15);
+  --warn-text: #fcd34d;
+  --warn-border: rgba(245, 158, 11, 0.3);
+  --scrollbar: #2a2f3a;
+  --scrollbar-hover: #3a4150;
+  color-scheme: dark;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
+
+/* Theme-aware utility classes used by components. */
+.bg-app { background: var(--bg-app); }
+.bg-card { background: var(--bg-card); }
+.bg-card-hover:hover { background: var(--bg-card-hover); }
+.bg-elevated { background: var(--bg-elevated); }
+.bg-toolbar { background: var(--bg-toolbar); backdrop-filter: blur(8px); }
+.bg-input { background: var(--bg-input); }
+.border-default { border-color: var(--border-default); }
+.border-strong { border-color: var(--border-strong); }
+.text-primary { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-muted { color: var(--text-muted); }
+.text-accent { color: var(--accent); }
+.bg-accent { background: var(--accent); }
+.bg-accent-soft { background: var(--accent-soft); }
+.ring-accent { box-shadow: 0 0 0 1px var(--accent-ring); }
+.text-danger { color: var(--danger); }
+.bg-danger { background: var(--danger); }
+.bg-danger-soft { background: var(--danger-soft); }
+.text-on-accent { color: var(--text-on-accent); }
+
+.warn-banner {
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  border-bottom: 1px solid var(--warn-border);
+}

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenColor — Picker</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .card {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 204px;
+        height: 80px;
+        background: rgba(20, 20, 20, 0.92);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 10px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+        display: flex;
+        align-items: center;
+        padding: 10px;
+        gap: 10px;
+        color: #f3f4f6;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        line-height: 1.35;
+        pointer-events: none;
+      }
+      .swatch {
+        width: 56px;
+        height: 56px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        flex-shrink: 0;
+      }
+      .meta { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+      .hex { font-weight: 600; font-size: 13px; letter-spacing: 0.3px; }
+      .rgb { color: rgba(255, 255, 255, 0.7); font-size: 11px; }
+      .hint { color: rgba(255, 255, 255, 0.45); font-size: 10px; }
+    </style>
+  </head>
+  <body>
+    <div class="card" id="card">
+      <div class="swatch" id="swatch"></div>
+      <div class="meta">
+        <div class="hex" id="hex">#------</div>
+        <div class="rgb" id="rgb">RGB(---,---,---)</div>
+        <div class="hint" id="hint">click · Esc</div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { listen, emit } from '@tauri-apps/api/event';
+
+      const swatch = document.getElementById('swatch');
+      const hexEl = document.getElementById('hex');
+      const rgbEl = document.getElementById('rgb');
+
+      listen('picker://pixel', (e) => {
+        const { hex, rgb } = e.payload;
+        swatch.style.background = hex;
+        hexEl.textContent = hex;
+        rgbEl.textContent = `RGB(${rgb[0]},${rgb[1]},${rgb[2]})`;
+      });
+
+      // Esc cancels the pick from inside the picker window.
+      // We also forward other events up; the global rdev hook still
+      // catches global clicks, but Esc is unreliable through rdev on macOS
+      // because system shortcuts intercept it before our tap.
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          emit('picker://cancel', {});
+        }
+      });
+
+      console.log('[picker-window] mounted');
+    </script>
+  </body>
+</html>
