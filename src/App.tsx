@@ -299,10 +299,15 @@ export default function App() {
       setTimeout(() => setStatusMsg(null), 3000);
       return;
     }
-    setPicking(true);
+    // Send IPC BEFORE flipping state so the picker window is already up by
+    // the time React re-renders the toolbar. The old order (setPicking then
+    // await IPC) could leave the user staring at the toolbar with the main
+    // window visible for ~30-100ms while Rust sets up the picker, making it
+    // feel like "nothing happened".
     try {
       await api.setPickerMode(true);
       await api.startPicking();
+      setPicking(true);
     } catch (e: any) {
       setPicking(false);
       setStatusMsg(t('status.pickFail', { error: e?.toString?.() ?? '' }));
@@ -312,11 +317,14 @@ export default function App() {
   };
 
   const handleStopPick = async () => {
-    setPicking(false);
+    // Tell Rust to cancel FIRST. If we await this before setState, the picker
+    // window is hidden and the main window restored before React re-renders,
+    // so the user never sees a stale "picking" indicator.
     if (!isDemoRef.current) {
       try { await api.stopPicking(); } catch {}
       await exitPickerMode();
     }
+    setPicking(false);
   };
 
   const handleAddColor = () => {
