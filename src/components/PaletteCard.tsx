@@ -36,21 +36,24 @@ export function PaletteCard({
 
   return (
     <div
+      draggable
       onClick={onOpen}
+      onDragStart={(e) => onDragStart(palette.id, e)}
+      onDragEnd={onDragEnd}
       onDragOver={(e) => onDragOver(palette.id, e)}
       onDragLeave={onDragLeave}
       onDrop={(e) => onDrop(palette.id, e)}
       className={
-        'group flex items-center gap-3 sm:gap-4 px-3 sm:px-4 py-3 sm:py-3.5 rounded-xl border bg-card bg-card-hover cursor-pointer transition ' +
+        'group flex items-center gap-3 sm:gap-4 px-3 sm:px-4 py-3 sm:py-3.5 rounded-xl border bg-card bg-card-hover cursor-pointer transition select-none ' +
         (isDragOver ? 'border-t-2 border-t-accent border-default ' : 'border border-default ') +
         (isDragging ? 'opacity-50 ' : '')
       }
     >
       <div
         className="hidden sm:flex text-muted group-hover:text-secondary transition shrink-0 cursor-grab active:cursor-grabbing touch-none"
-        draggable
-        onDragStart={(e) => onDragStart(palette.id, e)}
-        onDragEnd={onDragEnd}
+        // Stop the card-level onClick from opening the detail view when
+        // the user is just clicking the grip (which doesn't initiate a
+        // drag if they don't move the mouse).
         onClick={(e) => e.stopPropagation()}
       >
         <GripVertical size={14} />
