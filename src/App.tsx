@@ -215,44 +215,6 @@ export default function App() {
     setView('detail');
   };
 
-  // "Pick" / "Export" / "Edit" launched from a list card: open the palette
-  // first, then run the same action as if the user clicked the toolbar
-  // button in the detail view. We use a short-lived flag so the detail
-  // view's effect can fire the action after it mounts.
-  const [pendingAction, setPendingAction] = useState<'pick' | 'export' | 'rename' | 'addColor' | null>(null);
-
-  const handleListPick = (id: string) => {
-    setActiveId(id);
-    setView('detail');
-    setPendingAction('pick');
-  };
-  const handleListExport = (id: string) => {
-    setActiveId(id);
-    setView('detail');
-    setPendingAction('export');
-  };
-  const handleListRename = (id: string) => {
-    setActiveId(id);
-    setView('detail');
-    setPendingAction('rename');
-  };
-  const handleListAddColor = (id: string) => {
-    setActiveId(id);
-    setView('detail');
-    setPendingAction('addColor');
-  };
-
-  useEffect(() => {
-    if (view !== 'detail' || !pendingAction) return;
-    const action = pendingAction;
-    setPendingAction(null);
-    if (action === 'pick') handleStartPick();
-    else if (action === 'export') setExporting(true);
-    else if (action === 'rename') handleRenamePalette();
-    else if (action === 'addColor') handleAddColor();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, pendingAction]);
-
   const handleDeletePalette = async (id: string) => {
     const p = palettes.find((x) => x.id === id);
     if (!p) return;
@@ -551,10 +513,6 @@ export default function App() {
             onOpen={handleOpenPalette}
             onDelete={handleDeletePalette}
             onCreate={handleCreatePalette}
-            onPick={handleListPick}
-            onExport={handleListExport}
-            onEdit={handleListRename}
-            onAddColor={handleListAddColor}
           />
         ) : active ? (
           <ColorGrid
@@ -629,19 +587,11 @@ function PaletteListView({
   onOpen,
   onDelete,
   onCreate,
-  onPick,
-  onExport,
-  onEdit,
-  onAddColor,
 }: {
   palettes: Palette[];
   onOpen: (id: string) => void;
   onDelete: (id: string) => void;
   onCreate: () => void;
-  onPick: (id: string) => void;
-  onExport: (id: string) => void;
-  onEdit: (id: string) => void;
-  onAddColor: (id: string) => void;
 }) {
   const { t } = useTranslation();
   if (palettes.length === 0) {
@@ -674,10 +624,6 @@ function PaletteListView({
           key={p.id}
           palette={p}
           onOpen={() => onOpen(p.id)}
-          onPick={() => onPick(p.id)}
-          onExport={() => onExport(p.id)}
-          onEdit={() => onEdit(p.id)}
-          onAddColor={() => onAddColor(p.id)}
           onDelete={() => onDelete(p.id)}
         />
       ))}
