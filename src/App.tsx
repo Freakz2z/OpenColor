@@ -135,7 +135,7 @@ export default function App() {
         api.getPermissionState().then(setPermission).catch(() => setPermission('unsupported'));
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [palettes]);
+  }, []);
 
   useEffect(() => {
     const unPicked = listen<PickedPixel>('picker://picked', (e) => {
