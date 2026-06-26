@@ -52,6 +52,7 @@ pub fn run() {
             palette::create_palette,
             palette::update_palette,
             palette::delete_palette,
+            palette::reorder_palettes,
             palette::add_color,
             palette::update_color,
             palette::remove_color,

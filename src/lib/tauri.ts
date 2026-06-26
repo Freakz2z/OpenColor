@@ -8,6 +8,7 @@ export const api = {
   updatePalette: (id: string, name?: string, description?: string) =>
     invoke<Palette>('update_palette', { id, name, description }),
   deletePalette: (id: string) => invoke<void>('delete_palette', { id }),
+  reorderPalettes: (ids: string[]) => invoke<void>('reorder_palettes', { ids }),
 
   addColor: (paletteId: string, color: Color) =>
     invoke<Palette>('add_color', { paletteId, color }),

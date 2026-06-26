@@ -1,24 +1,61 @@
 import { useTranslation } from 'react-i18next';
-import { Trash } from 'lucide-react';
+import { Trash, GripVertical } from 'lucide-react';
 import type { Palette } from '../types';
 
 interface Props {
   palette: Palette;
   onOpen: () => void;
   onDelete: () => void;
+  draggingId: string | null;
+  dragOverId: string | null;
+  onDragStart: (id: string, e: React.DragEvent) => void;
+  onDragEnd: () => void;
+  onDragOver: (id: string, e: React.DragEvent) => void;
+  onDragLeave: () => void;
+  onDrop: (id: string, e: React.DragEvent) => void;
 }
 
-export function PaletteCard({ palette, onOpen, onDelete }: Props) {
+export function PaletteCard({
+  palette,
+  onOpen,
+  onDelete,
+  draggingId,
+  dragOverId,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+}: Props) {
   const { t } = useTranslation();
   const preview = palette.colors.slice(0, 5);
   const remaining = palette.colors.length - preview.length;
   const empty = palette.colors.length === 0;
+  const isDragging = draggingId === palette.id;
+  const isDragOver = dragOverId === palette.id;
 
   return (
     <div
       onClick={onOpen}
-      className="group flex items-center gap-3 sm:gap-4 px-3 sm:px-4 py-3 sm:py-3.5 rounded-xl border border-default bg-card bg-card-hover cursor-pointer transition"
+      onDragOver={(e) => onDragOver(palette.id, e)}
+      onDragLeave={onDragLeave}
+      onDrop={(e) => onDrop(palette.id, e)}
+      className={
+        'group flex items-center gap-3 sm:gap-4 px-3 sm:px-4 py-3 sm:py-3.5 rounded-xl border bg-card bg-card-hover cursor-pointer transition ' +
+        (isDragOver ? 'border-t-2 border-t-accent border-default ' : 'border border-default ') +
+        (isDragging ? 'opacity-50 ' : '')
+      }
     >
+      <div
+        className="hidden sm:flex text-muted group-hover:text-secondary transition shrink-0 cursor-grab active:cursor-grabbing touch-none"
+        draggable
+        onDragStart={(e) => onDragStart(palette.id, e)}
+        onDragEnd={onDragEnd}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <GripVertical size={14} />
+      </div>
+
       <div className="flex items-center gap-1.5 w-14 sm:w-20 shrink-0">
         {preview.length === 0 ? (
           <div className="w-12 sm:w-16 h-9 sm:h-10 rounded-md border border-dashed border-strong flex items-center justify-center text-muted text-[10px] sm:text-xs">

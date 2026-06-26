@@ -32,7 +32,7 @@ pub struct Palette {
 
 #[tauri::command]
 pub fn list_palettes(app: AppHandle) -> Result<Vec<Palette>, String> {
-    storage::list_all::<Palette>(&app).map_err(|e| e.to_string())
+    storage::list_palettes_ordered(&app).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -76,6 +76,12 @@ pub fn update_palette(
 #[tauri::command]
 pub fn delete_palette(app: AppHandle, id: String) -> Result<(), String> {
     storage::delete_one(&app, &id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn reorder_palettes(app: AppHandle, ids: Vec<String>) -> Result<Vec<Palette>, String> {
+    storage::write_order(&app, &ids).map_err(|e| e.to_string())?;
+    list_palettes(app)
 }
 
 #[tauri::command]

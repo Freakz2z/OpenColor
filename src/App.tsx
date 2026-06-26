@@ -215,6 +215,24 @@ export default function App() {
     setView('detail');
   };
 
+  const handleReorderPalettes = useCallback((ids: string[]) => {
+    setPalettes((prev) => {
+      const byId = new Map(prev.map((p) => [p.id, p]));
+      const next: Palette[] = [];
+      for (const id of ids) {
+        const p = byId.get(id);
+        if (p) {
+          next.push(p);
+          byId.delete(id);
+        }
+      }
+      // Append anything not in the new id list (shouldn't happen, but
+      // keeps the list length consistent if storage and UI diverge).
+      for (const p of byId.values()) next.push(p);
+      return next;
+    });
+  }, []);
+
   const handleDeletePalette = async (id: string) => {
     const p = palettes.find((x) => x.id === id);
     if (!p) return;
@@ -513,6 +531,8 @@ export default function App() {
             onOpen={handleOpenPalette}
             onDelete={handleDeletePalette}
             onCreate={handleCreatePalette}
+            onReorder={handleReorderPalettes}
+            isDemo={isDemo}
           />
         ) : active ? (
           <ColorGrid
@@ -587,13 +607,60 @@ function PaletteListView({
   onOpen,
   onDelete,
   onCreate,
+  onReorder,
+  isDemo,
 }: {
   palettes: Palette[];
   onOpen: (id: string) => void;
   onDelete: (id: string) => void;
   onCreate: () => void;
+  onReorder: (nextIds: string[]) => void;
+  isDemo: boolean;
 }) {
   const { t } = useTranslation();
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  const handleDragStart = (id: string, e: React.DragEvent) => {
+    setDraggingId(id);
+    e.dataTransfer.effectAllowed = 'move';
+    // Some browsers refuse drop without setData, even though we don't read it.
+    e.dataTransfer.setData('text/plain', id);
+  };
+  const handleDragOver = (id: string, e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverId !== id) setDragOverId(id);
+  };
+  const handleDragLeave = () => {
+    setDragOverId(null);
+  };
+  const handleDragEnd = () => {
+    setDraggingId(null);
+    setDragOverId(null);
+  };
+  const handleDrop = (targetId: string, e: React.DragEvent) => {
+    e.preventDefault();
+    const sourceId = draggingId;
+    setDraggingId(null);
+    setDragOverId(null);
+    if (!sourceId || sourceId === targetId) return;
+    const from = palettes.findIndex((p) => p.id === sourceId);
+    const to = palettes.findIndex((p) => p.id === targetId);
+    if (from < 0 || to < 0) return;
+    const next = [...palettes];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    onReorder(next.map((p) => p.id));
+    if (!isDemo) {
+      api.reorderPalettes(next.map((p) => p.id)).catch((err) => {
+        console.error('[reorder] persist failed:', err);
+        // Roll back to the persisted order so UI matches storage.
+        api.listPalettes().then((list) => onReorder(list.map((p) => p.id))).catch(() => {});
+      });
+    }
+  };
+
   if (palettes.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-muted text-sm gap-3">
@@ -625,6 +692,13 @@ function PaletteListView({
           palette={p}
           onOpen={() => onOpen(p.id)}
           onDelete={() => onDelete(p.id)}
+          draggingId={draggingId}
+          dragOverId={dragOverId}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
         />
       ))}
     </div>
