@@ -51,6 +51,7 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             libpipewire-0.3-dev \
+            libgbm-dev \
             libx11-dev \
             libxtst-dev \
             libxcb-cursor0 \
