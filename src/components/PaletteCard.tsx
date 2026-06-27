@@ -8,11 +8,10 @@ interface Props {
   onDelete: () => void;
   draggingId: string | null;
   dragOverId: string | null;
-  onDragStart: (id: string, e: React.DragEvent) => void;
-  onDragEnd: () => void;
-  onDragOver: (id: string, e: React.DragEvent) => void;
-  onDragLeave: () => void;
-  onDrop: (id: string, e: React.DragEvent) => void;
+  onDragPointerDown: (id: string, e: React.PointerEvent<HTMLElement>) => void;
+  onDragPointerMove: (e: React.PointerEvent<HTMLElement>) => void;
+  onDragPointerUp: (e: React.PointerEvent<HTMLElement>) => void;
+  onDragPointerCancel: (e: React.PointerEvent<HTMLElement>) => void;
 }
 
 export function PaletteCard({
@@ -21,11 +20,10 @@ export function PaletteCard({
   onDelete,
   draggingId,
   dragOverId,
-  onDragStart,
-  onDragEnd,
-  onDragOver,
-  onDragLeave,
-  onDrop,
+  onDragPointerDown,
+  onDragPointerMove,
+  onDragPointerUp,
+  onDragPointerCancel,
 }: Props) {
   const { t } = useTranslation();
   const preview = palette.colors.slice(0, 5);
@@ -36,15 +34,9 @@ export function PaletteCard({
 
   return (
     <div
-      draggable
       data-palette-id={palette.id}
       data-testid="palette-card"
       onClick={onOpen}
-      onDragStart={(e) => onDragStart(palette.id, e)}
-      onDragEnd={onDragEnd}
-      onDragOver={(e) => onDragOver(palette.id, e)}
-      onDragLeave={onDragLeave}
-      onDrop={(e) => onDrop(palette.id, e)}
       className={
         'group flex items-center gap-3 sm:gap-4 px-3 sm:px-4 py-3 sm:py-3.5 rounded-xl border bg-card bg-card-hover cursor-pointer transition select-none ' +
         (isDragOver ? 'border-t-2 border-t-accent border-default ' : 'border border-default ') +
@@ -52,10 +44,13 @@ export function PaletteCard({
       }
     >
       <div
-        className="hidden sm:flex text-muted group-hover:text-secondary transition shrink-0 cursor-grab active:cursor-grabbing touch-none"
-        // Stop the card-level onClick from opening the detail view when
-        // the user is just clicking the grip (which doesn't initiate a
-        // drag if they don't move the mouse).
+        aria-label={t('card.reorder', { name: palette.name })}
+        title={t('card.reorder', { name: palette.name })}
+        className="flex text-muted group-hover:text-secondary transition shrink-0 cursor-grab active:cursor-grabbing touch-none"
+        onPointerDown={(e) => onDragPointerDown(palette.id, e)}
+        onPointerMove={onDragPointerMove}
+        onPointerUp={onDragPointerUp}
+        onPointerCancel={onDragPointerCancel}
         onClick={(e) => e.stopPropagation()}
       >
         <GripVertical size={14} />

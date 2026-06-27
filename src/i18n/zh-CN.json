@@ -36,6 +36,7 @@
     "empty": "空",
     "more": "+{{count}}",
     "open": "打开",
+    "reorder": "拖拽排序 {{name}}",
     "delete": "删除",
     "emptyHint": "空 — 打开后开始取色"
   },
@@ -105,8 +106,9 @@
     "failExtract": "提取颜色失败"
   },
   "permission": {
-    "deniedTitle": "需要屏幕录制权限",
+    "deniedTitle": "需要系统权限",
     "deniedBodyMac": "macOS 要求授予 OpenColor 屏幕录制权限后才能从任何位置取色。",
+    "deniedBodyMacInput": "macOS 还需要在“隐私与安全性 > 辅助功能”中允许 OpenColor 监听取色确认和 ESC 取消操作。",
     "deniedBodyWin": "Windows 取色器初始化失败, 请尝试重启应用或更新显卡驱动。",
     "deniedBodyLinux": "Linux 取色器初始化失败。请确认当前会话是 X11, 并检查系统截图/输入权限。",
     "unsupportedTitle": "当前平台暂不支持屏幕取色",

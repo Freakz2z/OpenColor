@@ -19,6 +19,7 @@ import { Image as ImageIcon, PlusCircle as PlusCircleIcon } from 'lucide-react';
 import { SettingsView } from './components/SettingsView';
 import { ImageImportDialog } from './components/ImageImportDialog';
 import { DEMO_PALETTES } from './lib/demoData';
+import { reorderIds } from './lib/reorder';
 
 type Dialog =
   | { kind: 'prompt'; title: string; placeholder?: string; defaultValue?: string; resolve: (v: string | null) => void }
@@ -76,14 +77,9 @@ export default function App() {
   const isDemoRef = useRef(isDemo);
   isDemoRef.current = isDemo;
 
-  const exitPickerMode = useCallback(async () => {
-    if (isDemoRef.current) return;
-    try {
-      await api.setPickerMode(false);
-    } catch (e) {
-      console.error('[picker] exitPickerMode failed:', e);
-    }
-  }, []);
+  // React can receive a second click before the toolbar swaps buttons.
+  // Keep only one start command in flight; Rust also rejects active sessions.
+  const pickInFlightRef = useRef(false);
 
   const setTheme = useCallback((next: Theme) => {
     setThemeState(next);
@@ -141,7 +137,6 @@ export default function App() {
     const unPicked = listen<PickedPixel>('picker://picked', (e) => {
       const p = e.payload;
       setPicking(false);
-      exitPickerMode();
       const color: Color = {
         id: crypto.randomUUID(),
         name: '',
@@ -154,13 +149,24 @@ export default function App() {
     });
     const unCancelled = listen('picker://cancelled', () => {
       setPicking(false);
-      exitPickerMode();
     });
+    // Diagnostic mirror of Rust's picker mode-change log. Surfaces whether
+    // main actually hid after `set_picker_mode(true)` ran, so the
+    // "window didn't hide" symptom is observable from the webview console
+    // even when the Rust log stream isn't being captured.
+    const unModeChanged = listen<{ enabled: boolean; main_visible: boolean }>(
+      'picker://mode-changed',
+      (e) => {
+        console.log('[picker] mode-changed', e.payload);
+        if (!e.payload.enabled) setPicking(false);
+      },
+    );
     return () => {
       unPicked.then((f) => f());
       unCancelled.then((f) => f());
+      unModeChanged.then((f) => f());
     };
-  }, [exitPickerMode]);
+  }, []);
 
   // In demo mode, simulate a "pick" by inserting a random color from the demo palette.
   const active = palettes.find((p) => p.id === activeId) ?? null;
@@ -264,35 +270,41 @@ export default function App() {
   };
 
   const handleStartPick = async () => {
-    if (!active) {
-      setStatusMsg(t('status.noPaletteForPick'));
-      setTimeout(() => setStatusMsg(null), 2500);
+    if (pickInFlightRef.current || picking) {
+      // Already starting or running. Ignore the duplicate click — see the
+      // pickInFlightRef comment for why this matters.
       return;
     }
-    if (isDemoRef.current) {
-      setPicking(true);
-      setStatusMsg(t('status.pickDemoHint'));
-      return;
-    }
-    if (permission !== 'ok') {
-      setStatusMsg(t('status.pickUnavailable'));
-      setTimeout(() => setStatusMsg(null), 3000);
-      return;
-    }
-    // Send IPC BEFORE flipping state so the picker window is already up by
-    // the time React re-renders the toolbar. The old order (setPicking then
-    // await IPC) could leave the user staring at the toolbar with the main
-    // window visible for ~30-100ms while Rust sets up the picker, making it
-    // feel like "nothing happened".
+    pickInFlightRef.current = true;
     try {
-      await api.setPickerMode(true);
-      await api.startPicking();
-      setPicking(true);
-    } catch (e: any) {
-      setPicking(false);
-      setStatusMsg(t('status.pickFail', { error: e?.toString?.() ?? '' }));
-      setTimeout(() => setStatusMsg(null), 3000);
-      try { await api.setPickerMode(false); } catch {}
+      if (!active) {
+        setStatusMsg(t('status.noPaletteForPick'));
+        setTimeout(() => setStatusMsg(null), 2500);
+        return;
+      }
+      if (isDemoRef.current) {
+        setPicking(true);
+        setStatusMsg(t('status.pickDemoHint'));
+        return;
+      }
+      if (permission !== 'ok') {
+        setStatusMsg(t('status.pickUnavailable'));
+        setTimeout(() => setStatusMsg(null), 3000);
+        return;
+      }
+      // Rust starts the input hook, creates the session and changes window
+      // mode as one operation. A failed start therefore cannot strand the
+      // application with its main window hidden.
+      try {
+        await api.startPicking();
+        setPicking(true);
+      } catch (e: any) {
+        setPicking(false);
+        setStatusMsg(t('status.pickFail', { error: e?.toString?.() ?? '' }));
+        setTimeout(() => setStatusMsg(null), 3000);
+      }
+    } finally {
+      pickInFlightRef.current = false;
     }
   };
 
@@ -302,7 +314,6 @@ export default function App() {
     // so the user never sees a stale "picking" indicator.
     if (!isDemoRef.current) {
       try { await api.stopPicking(); } catch {}
-      await exitPickerMode();
     }
     setPicking(false);
   };
@@ -620,69 +631,43 @@ function PaletteListView({
   const { t } = useTranslation();
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const dragRef = useRef<{
+    sourceId: string;
+    pointerId: number;
+    startY: number;
+    active: boolean;
+  } | null>(null);
 
-  const handleDragStart = (id: string, e: React.DragEvent) => {
-    setDraggingId(id);
-    e.dataTransfer.effectAllowed = 'move';
-    // Some browsers refuse drop without setData, even though we don't read it.
-    e.dataTransfer.setData('text/plain', id);
-  };
-  const handleDragOver = (id: string, e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (dragOverId !== id) setDragOverId(id);
-  };
-  const handleDragLeave = () => {
-    setDragOverId(null);
-  };
-  const handleDragEnd = () => {
+  const clearDrag = () => {
+    dragRef.current = null;
     setDraggingId(null);
     setDragOverId(null);
   };
-  const handleDrop = (targetId: string, e: React.DragEvent) => {
-    e.preventDefault();
-    const sourceId = draggingId;
-    setDraggingId(null);
-    setDragOverId(null);
-    if (!sourceId || sourceId === targetId) return;
-    const from = palettes.findIndex((p) => p.id === sourceId);
-    const to = palettes.findIndex((p) => p.id === targetId);
-    if (from < 0 || to < 0) return;
-    const next = [...palettes];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved);
-    onReorder(next.map((p) => p.id));
+
+  const persistOrder = (sourceId: string, targetId: string) => {
+    const currentIds = palettes.map((p) => p.id);
+    const nextIds = reorderIds(currentIds, sourceId, targetId);
+    if (nextIds === currentIds) return;
+    onReorder(nextIds);
     if (!isDemo) {
-      api.reorderPalettes(next.map((p) => p.id)).catch((err) => {
+      api.reorderPalettes(nextIds).catch((err) => {
         console.error('[reorder] persist failed:', err);
-        // Roll back to the persisted order so UI matches storage.
         api.listPalettes().then((list) => onReorder(list.map((p) => p.id))).catch(() => {});
       });
     }
   };
 
-  // When the user drops in the gap, padding, or empty area below
-  // the last card, no PaletteCard receives the drop event. Use the
-  // container as a fallback drop target and pick a target card by
-  // mouse-Y position (or append to end if past the last card).
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const pickTargetByY = (clientY: number): string | null => {
+  const pickTargetByY = (clientY: number, sourceId: string): string | null => {
     const root = containerRef.current;
     if (!root) return null;
     const cards = Array.from(root.querySelectorAll<HTMLElement>('[data-palette-id]'));
     if (cards.length === 0) return null;
-    // If the mouse is below the last card, append to end.
-    const lastRect = cards[cards.length - 1].getBoundingClientRect();
-    if (clientY > lastRect.bottom) {
-      return lastRect.top > 0 ? cards[cards.length - 1].dataset.paletteId ?? null : null;
-    }
-    // Otherwise pick the card whose top is closest to the cursor.
     let best: { id: string; dist: number } | null = null;
     for (const el of cards) {
       const r = el.getBoundingClientRect();
-      // Skip the source card — drop on self is a no-op.
       const id = el.dataset.paletteId;
-      if (!id || id === draggingId) continue;
+      if (!id || id === sourceId) continue;
       const mid = r.top + r.height / 2;
       const dist = Math.abs(clientY - mid);
       if (best === null || dist < best.dist) {
@@ -691,23 +676,40 @@ function PaletteListView({
     }
     return best?.id ?? null;
   };
-  const handleContainerDragOver = (e: React.DragEvent) => {
-    if (!draggingId) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    const id = pickTargetByY(e.clientY);
-    if (id && id !== dragOverId) setDragOverId(id);
+
+  const handleDragPointerDown = (id: string, e: React.PointerEvent<HTMLElement>) => {
+    if (e.button !== 0) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragRef.current = {
+      sourceId: id,
+      pointerId: e.pointerId,
+      startY: e.clientY,
+      active: false,
+    };
   };
-  const handleContainerDrop = (e: React.DragEvent) => {
-    if (!draggingId) return;
-    e.preventDefault();
-    const targetId = pickTargetByY(e.clientY);
-    if (!targetId) {
-      setDraggingId(null);
-      setDragOverId(null);
-      return;
+
+  const handleDragPointerMove = (e: React.PointerEvent<HTMLElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    if (!drag.active && Math.abs(e.clientY - drag.startY) < 5) return;
+    if (!drag.active) {
+      drag.active = true;
+      setDraggingId(drag.sourceId);
     }
-    handleDrop(targetId, e);
+    const targetId = pickTargetByY(e.clientY, drag.sourceId);
+    setDragOverId(targetId);
+  };
+
+  const handleDragPointerUp = (e: React.PointerEvent<HTMLElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const targetId = drag.active ? pickTargetByY(e.clientY, drag.sourceId) : null;
+    clearDrag();
+    if (targetId) persistOrder(drag.sourceId, targetId);
+  };
+
+  const handleDragPointerCancel = (e: React.PointerEvent<HTMLElement>) => {
+    if (dragRef.current?.pointerId === e.pointerId) clearDrag();
   };
 
   if (palettes.length === 0) {
@@ -736,8 +738,6 @@ function PaletteListView({
   return (
     <div
       ref={containerRef}
-      onDragOver={handleContainerDragOver}
-      onDrop={handleContainerDrop}
       className="p-4 space-y-2.5 max-w-3xl mx-auto"
     >
       {palettes.map((p) => (
@@ -748,11 +748,10 @@ function PaletteListView({
           onDelete={() => onDelete(p.id)}
           draggingId={draggingId}
           dragOverId={dragOverId}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
+          onDragPointerDown={handleDragPointerDown}
+          onDragPointerMove={handleDragPointerMove}
+          onDragPointerUp={handleDragPointerUp}
+          onDragPointerCancel={handleDragPointerCancel}
         />
       ))}
     </div>

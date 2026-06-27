@@ -36,6 +36,7 @@
     "empty": "Empty",
     "more": "+{{count}}",
     "open": "Open",
+    "reorder": "Reorder {{name}}",
     "delete": "Delete",
     "emptyHint": "Empty — open and start picking"
   },
@@ -105,8 +106,9 @@
     "failExtract": "Failed to extract colors"
   },
   "permission": {
-    "deniedTitle": "Screen capture permission required",
+    "deniedTitle": "System permission required",
     "deniedBodyMac": "macOS requires OpenColor to have Screen Recording permission to pick colors from anywhere on screen.",
+    "deniedBodyMacInput": "macOS also requires OpenColor in Privacy & Security > Accessibility so it can detect pick confirmation and Escape cancellation.",
     "deniedBodyWin": "Color picking on Windows failed to initialize. Try restarting the app or updating your graphics driver.",
     "deniedBodyLinux": "Color picking on Linux failed to initialize. Make sure the current session is X11 and check screenshot/input permissions.",
     "unsupportedTitle": "Screen picking not supported on this platform",

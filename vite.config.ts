@@ -11,7 +11,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
-        loupe: resolve(__dirname, 'loupe.html'),
+        picker: resolve(__dirname, 'picker.html'),
       },
     },
   },

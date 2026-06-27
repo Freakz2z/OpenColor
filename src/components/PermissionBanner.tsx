@@ -26,8 +26,13 @@ export function PermissionBanner({ state, platform }: Props) {
   if (state === 'denied') {
     if (isMac) {
       title = t('permission.deniedTitle');
-      body = t('permission.deniedBodyMac');
-      actionUrl = 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture';
+      const needsInputPermission = platform?.canCaptureScreen && !platform.canListenGlobalInput;
+      body = needsInputPermission
+        ? t('permission.deniedBodyMacInput')
+        : t('permission.deniedBodyMac');
+      actionUrl = needsInputPermission
+        ? 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
+        : 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture';
       actionLabel = t('permission.openSettings');
     } else if (isWin) {
       title = t('permission.deniedTitle');

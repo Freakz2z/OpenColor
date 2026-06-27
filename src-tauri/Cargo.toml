@@ -33,7 +33,6 @@ mouse_position = "0.1"
 rdev = { version = "0.5", default-features = false }
 
 [profile.release]
-panic = "abort"
 codegen-units = 1
 lto = true
 opt-level = "s"

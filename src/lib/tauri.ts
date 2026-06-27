@@ -19,7 +19,6 @@ export const api = {
 
   startPicking: () => invoke<void>('start_picking'),
   stopPicking: () => invoke<void>('stop_picking'),
-  setPickerMode: (enabled: boolean) => invoke<void>('set_picker_mode', { enabled }),
   capturePixel: (x: number, y: number) =>
     invoke<PickedPixel>('capture_pixel', { x, y }),
 

@@ -61,7 +61,6 @@ pub fn run() {
             picker::capture_pixel,
             platform::get_permission_state,
             platform::get_platform_info,
-            picker::set_picker_mode,
         ])
         .setup(|app| {
             log::info!(

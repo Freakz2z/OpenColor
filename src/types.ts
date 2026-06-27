@@ -27,6 +27,8 @@ export interface PlatformInfo {
   os: string;
   displayServer?: string | null;
   permission: PermissionState;
+  canCaptureScreen: boolean;
+  canListenGlobalInput: boolean;
   canPickScreen: boolean;
 }
 

@@ -8,20 +8,23 @@
 //! - `capture_pixel` — synchronous single-pixel read; kept for one-shot use
 //!   without the live preview.
 //!
-//! Click anywhere on the screen to commit the pick; Esc to cancel.
-//! Implementation note: there is no transparent loupe webview — the main
-//! window itself stays put while a floating card follows the cursor. This
-//! is lighter and avoids the macOS WKWebView + transparent + canvas bug.
+//! Click anywhere on the screen to commit the pick; Esc to cancel. A small
+//! transparent picker webview follows the cursor while the main window is
+//! hidden; all lifecycle and recovery work remains owned by this module.
 
 use crate::AppState;
 use rdev::{Button, Event, EventType, Key};
 use serde::Serialize;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{
+    atomic::{AtomicU8, Ordering},
+    Mutex, OnceLock,
+};
 use tauri::{AppHandle, Emitter, Listener, Manager, Runtime, State, Wry};
 use tokio_util::sync::CancellationToken;
 
-pub const CAPTURE_INTERVAL_MS: u64 = 16; // ~60Hz preview
+pub const CAPTURE_INTERVAL_MS: u64 = 33; // ~30Hz preview without saturating screen capture
 const CLICK_HOOK_POLL_MS: u64 = 50;
+const CLICK_ARM_DELAY_MS: u64 = 250;
 
 /// Width / height of the picker webview (matches tauri.conf.json). Used by
 /// the on-screen clamp so the card never escapes the visible region.
@@ -42,9 +45,15 @@ pub enum TapEvent {
 /// problem (we only call `rdev::listen` once per process — its internal
 /// `CFRunLoopRun()` is uncancellable, so spawning it twice leaks threads).
 static TAP_QUEUE: OnceLock<Mutex<Vec<TapEvent>>> = OnceLock::new();
+static TAP_STATE: AtomicU8 = AtomicU8::new(TAP_NOT_STARTED);
+const TAP_NOT_STARTED: u8 = 0;
+const TAP_STARTING: u8 = 1;
+const TAP_RUNNING: u8 = 2;
+const TAP_FAILED: u8 = 3;
 
 pub struct PickerSession {
     token: Option<CancellationToken>,
+    session_id: u64,
     /// Guards attached per-session so we can unlisten them on cancel.
     cancel_listeners: Vec<tauri::EventId>,
     /// AppHandle kept for defensive window restore on cancel.
@@ -59,43 +68,21 @@ impl Default for PickerSession {
 
 impl PickerSession {
     pub fn idle() -> Self {
-        Self { token: None, cancel_listeners: Vec::new(), app: None }
+        Self {
+            token: None,
+            session_id: 0,
+            cancel_listeners: Vec::new(),
+            app: None,
+        }
     }
     pub fn is_active(&self) -> bool {
         self.token.is_some()
     }
-    pub fn cancel(&mut self) {
-        if let Some(t) = self.token.take() {
-            t.cancel();
+    pub fn start(&mut self, app: AppHandle<Wry>) -> Result<(u64, CancellationToken), String> {
+        if self.is_active() {
+            return Err("A picker session is already active".into());
         }
-        // Defensive: the frontend should call set_picker_mode(false) on
-        // cancel/pick, but if the listener was unregistered, the React
-        // component unmounted mid-pick, or the JS errored, we'd otherwise
-        // leave the main window hidden under Accessory activation policy —
-        // making the whole app unresponsive to clicks. Always restore here.
-        if let Some(app) = self.app.take() {
-            for id in self.cancel_listeners.drain(..) {
-                app.unlisten(id);
-            }
-            // Force-hide picker in case the cancelled emit was lost. This is
-            // idempotent — if the picker is already hidden, `hide()` is a no-op.
-            if let Some(picker) = app.get_webview_window("picker") {
-                let _ = picker.hide();
-            }
-            if let Err(e) = set_picker_mode(app.clone(), false) {
-                log::error!("[picker] defensive set_picker_mode(false) failed: {e}");
-            }
-            // The normal set_picker_mode(false) leaves the window's geometry
-            // alone (so the user's chosen size is preserved). But this cancel
-            // may have been triggered while the window was still in `hidden`
-            // — we should make sure it's visible at its last known position.
-            restore_main_geometry(&app);
-        }
-    }
-    pub fn start(&mut self, app: AppHandle<Wry>) -> CancellationToken {
-        // First cancel any prior session and unlisten its listeners so we
-        // don't accumulate EventIds across picking sessions.
-        self.cancel();
+        self.session_id = self.session_id.wrapping_add(1).max(1);
         self.app = Some(app);
         let t = CancellationToken::new();
         self.token = Some(t.clone());
@@ -107,11 +94,34 @@ impl PickerSession {
                 g.clear();
             }
         }
-        t
+        Ok((self.session_id, t))
     }
-    pub fn track_listener(&mut self, id: tauri::EventId) {
+    pub fn track_listener(&mut self, session_id: u64, id: tauri::EventId) -> bool {
+        if self.session_id != session_id || self.token.is_none() {
+            return false;
+        }
         self.cancel_listeners.push(id);
+        true
     }
+    fn take(&mut self, expected_session_id: Option<u64>) -> Option<SessionCleanup> {
+        if let Some(expected) = expected_session_id {
+            if self.session_id != expected || self.token.is_none() {
+                return None;
+            }
+        }
+        let token = self.token.take()?;
+        Some(SessionCleanup {
+            token,
+            listeners: std::mem::take(&mut self.cancel_listeners),
+            app: self.app.take(),
+        })
+    }
+}
+
+struct SessionCleanup {
+    token: CancellationToken,
+    listeners: Vec<tauri::EventId>,
+    app: Option<AppHandle<Wry>>,
 }
 
 #[derive(Serialize, Clone)]
@@ -123,10 +133,7 @@ pub struct PixelPayload {
 }
 
 #[tauri::command]
-pub async fn start_picking(
-    app: AppHandle<Wry>,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
+pub async fn start_picking(app: AppHandle<Wry>, state: State<'_, AppState>) -> Result<(), String> {
     log::info!(
         "[picker] start_picking called, permission={:?}",
         state.permission
@@ -144,18 +151,15 @@ pub async fn start_picking(
             );
         }
     }
-    let token = state.picker.lock().start(app.clone());
-    log::info!("[picker] capture loop token created, spawning tasks");
-
-    // Ensure the rdev global tap is running (process-wide singleton).
+    // Check the process-wide input hook before hiding anything. If the hook
+    // cannot start, the command fails with the main window still visible.
     if let Err(e) = ensure_tap_running() {
         log::error!("[picker] failed to start global tap: {e}");
-        state.picker.lock().cancel();
         return Err(format!("Failed to start global mouse hook: {e}"));
     }
 
-    spawn_capture_loop(app.clone(), token.clone());
-    spawn_click_dispatch(app.clone(), token.clone());
+    let (session_id, token) = state.picker.lock().start(app.clone())?;
+    log::info!("[picker] session {session_id} created");
 
     // Listen for Esc pressed inside the picker window. rdev's global key
     // hook is unreliable on macOS because the OS short-circuits Esc before
@@ -164,27 +168,91 @@ pub async fn start_picking(
     // accumulates another listener that fires forever).
     {
         let app_for_listen = app.clone();
-        let token_for_listen = token.clone();
         let id = app.listen("picker://cancel", move |_event| {
-            log::info!("[picker] picker://cancel → cancel token");
-            let _ = app_for_listen.emit("picker://cancelled", ());
-            token_for_listen.cancel();
+            log::info!("[picker] picker://cancel for session {session_id}");
+            finish_session(&app_for_listen, session_id, PickOutcome::Cancelled);
         });
-        state.picker.lock().track_listener(id);
+        if !state.picker.lock().track_listener(session_id, id) {
+            app.unlisten(id);
+            return Err("Picker session ended while it was starting".into());
+        }
     }
+
+    if let Err(e) = set_picker_mode(app.clone(), true) {
+        finish_session(&app, session_id, PickOutcome::Silent);
+        return Err(e);
+    }
+
+    spawn_capture_loop(app.clone(), token.clone());
+    spawn_click_dispatch(app, token, session_id);
     Ok(())
 }
 
 #[tauri::command]
-pub fn stop_picking(state: State<'_, AppState>) {
+pub fn stop_picking(app: AppHandle<Wry>) {
     log::info!("[picker] stop_picking called");
-    state.picker.lock().cancel();
+    finish_current_session(&app, PickOutcome::Cancelled);
+}
+
+enum PickOutcome {
+    Picked(PixelPayload),
+    Cancelled,
+    Silent,
+}
+
+fn finish_current_session(app: &AppHandle<Wry>, outcome: PickOutcome) {
+    let session_id = {
+        let state = app.state::<AppState>();
+        let session = state.picker.lock();
+        session.token.as_ref().map(|_| session.session_id)
+    };
+    if let Some(session_id) = session_id {
+        finish_session(app, session_id, outcome);
+    } else if let Err(e) = set_picker_mode(app.clone(), false) {
+        log::error!("[picker] restoring idle picker mode failed: {e}");
+    }
+}
+
+fn finish_session(app: &AppHandle<Wry>, session_id: u64, outcome: PickOutcome) {
+    let cleanup = app.state::<AppState>().picker.lock().take(Some(session_id));
+    let Some(cleanup) = cleanup else {
+        return;
+    };
+
+    cleanup.token.cancel();
+    if let Some(session_app) = cleanup.app {
+        for id in cleanup.listeners {
+            session_app.unlisten(id);
+        }
+    }
+
+    if let Err(e) = set_picker_mode(app.clone(), false) {
+        log::error!("[picker] failed to restore windows for session {session_id}: {e}");
+        restore_main_geometry(app);
+    }
+
+    match outcome {
+        PickOutcome::Picked(payload) => {
+            let _ = app.emit("picker://picked", payload);
+        }
+        PickOutcome::Cancelled => {
+            let _ = app.emit("picker://cancelled", ());
+        }
+        PickOutcome::Silent => {}
+    }
 }
 
 /// Toggle picker overlay mode:
 /// - enabled=true: hide main window, show dedicated transparent picker
 ///   window (220x96), wire it to follow the cursor.
 /// - enabled=false: hide picker window, show main window again.
+///
+/// macOS quirk: `set_activation_policy` posts an NSApp message and returns
+/// immediately, but the actual policy transition takes ~50-200ms. If we
+/// issue window show/hide calls before the policy settles, macOS may
+/// silently drop them — leaving main visible on pick start. The sleeps
+/// after the policy change give the window server time to catch up. This
+/// is the source of the intermittent "window doesn't hide" symptom.
 #[tauri::command]
 pub fn set_picker_mode<R: Runtime>(app: AppHandle<R>, enabled: bool) -> Result<(), String> {
     let main = app
@@ -200,6 +268,9 @@ pub fn set_picker_mode<R: Runtime>(app: AppHandle<R>, enabled: bool) -> Result<(
         #[cfg(target_os = "macos")]
         {
             let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            // Let the policy change settle before manipulating windows —
+            // see the doc comment above.
+            std::thread::sleep(std::time::Duration::from_millis(80));
         }
         // Remember the main window's geometry so we can restore it on exit
         // (the user might have moved/resized it before picking).
@@ -220,7 +291,11 @@ pub fn set_picker_mode<R: Runtime>(app: AppHandle<R>, enabled: bool) -> Result<(
         // CGEventTap (rdev's hook), which then stops receiving clicks — that
         // is the classic source of "the picker card never appeared / clicks
         // are silent". Showing the picker first keeps the process foreground.
-        let _ = picker.show();
+        if let Err(e) = picker.show() {
+            log::warn!("[picker] picker.show() failed: {e}");
+        }
+        // Brief yield so the OS processes the show before we move/hide.
+        std::thread::sleep(std::time::Duration::from_millis(20));
         // Position the picker at the cursor first (so it appears where the
         // user is), then clamp to the visible screen region so it can't end
         // up off-screen on multi-monitor / dock-edge setups.
@@ -229,32 +304,101 @@ pub fn set_picker_mode<R: Runtime>(app: AppHandle<R>, enabled: bool) -> Result<(
             let lx = ((cx + 16) as f64 / scale).round() as i32;
             let ly = ((cy + 16) as f64 / scale).round() as i32;
             let (clx, cly) = clamp_to_screen(lx, ly, PICKER_W, PICKER_H);
-            let _ = picker.set_position(tauri::LogicalPosition::new(clx, cly));
+            if let Err(e) = picker.set_position(tauri::LogicalPosition::new(clx, cly)) {
+                log::warn!("[picker] picker.set_position() failed: {e}");
+            }
         } else {
             // No cursor info — put it at the primary monitor's center.
             let (clx, cly) = primary_monitor_center(PICKER_W, PICKER_H);
-            let _ = picker.set_position(tauri::LogicalPosition::new(clx, cly));
+            if let Err(e) = picker.set_position(tauri::LogicalPosition::new(clx, cly)) {
+                log::warn!("[picker] picker.set_position() failed: {e}");
+            }
         }
-        let _ = picker.set_focus();
+        if let Err(e) = picker.set_focus() {
+            // Picker has focus:false in tauri.conf.json, so this is expected
+            // to be a no-op on some macOS versions. Log at debug to avoid noise.
+            log::debug!("[picker] picker.set_focus() returned: {e}");
+        }
         // Now safe to hide main.
-        let _ = main.hide();
+        if let Err(e) = main.hide() {
+            log::warn!("[picker] main.hide() failed: {e}");
+        }
+        // Verify main actually hid. macOS occasionally drops the hide if it
+        // arrived during an activation-policy transition; retry once after a
+        // brief wait. This is the direct fix for "clicked picker button,
+        // window didn't hide".
+        let main_visible = main.is_visible().unwrap_or(true);
+        if main_visible {
+            log::warn!("[picker] main still visible after hide(), retrying");
+            std::thread::sleep(std::time::Duration::from_millis(60));
+            if let Err(e) = main.hide() {
+                log::warn!("[picker] main.hide() retry failed: {e}");
+            }
+        }
+        let final_visible = main.is_visible().unwrap_or(true);
+        log::info!("[picker] mode=enabled done, main.is_visible={final_visible}");
+        let _ = app.emit(
+            "picker://mode-changed",
+            &serde_json::json!({
+                "enabled": true,
+                "main_visible": final_visible,
+            }),
+        );
+        if final_visible {
+            return Err("The main window could not be hidden".into());
+        }
+        if !picker.is_focused().unwrap_or(false) {
+            let _ = picker.set_focus();
+        }
     } else {
         #[cfg(target_os = "macos")]
         {
             let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
+            std::thread::sleep(std::time::Duration::from_millis(80));
         }
-        let _ = picker.hide();
-        let _ = main.show();
-        let _ = main.set_decorations(true);
-        let _ = main.set_always_on_top(false);
-        let _ = main.set_ignore_cursor_events(false);
+        if let Err(e) = picker.hide() {
+            log::warn!("[picker] picker.hide() failed: {e}");
+        }
+        if let Err(e) = main.show() {
+            log::warn!("[picker] main.show() failed: {e}");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        if let Err(e) = main.set_decorations(true) {
+            log::warn!("[picker] main.set_decorations(true) failed: {e}");
+        }
+        if let Err(e) = main.set_always_on_top(false) {
+            log::warn!("[picker] main.set_always_on_top(false) failed: {e}");
+        }
+        if let Err(e) = main.set_ignore_cursor_events(false) {
+            log::warn!("[picker] main.set_ignore_cursor_events(false) failed: {e}");
+        }
         // Intentionally do NOT touch the window's size or position here.
         // The OS/window manager preserves geometry across hide/show, and the
         // user may have resized the main window since it was first opened.
         // Forcing a set_size from the saved geom would shrink the window back
         // to its original 640x480 on every pick. Only the defensive cancel
         // path (when the window got stuck hidden mid-pick) restores geometry.
-        let _ = main.set_focus();
+        if let Err(e) = main.set_focus() {
+            log::warn!("[picker] main.set_focus() failed: {e}");
+        }
+        let mut final_visible = main.is_visible().unwrap_or(false);
+        if !final_visible {
+            log::warn!("[picker] main still hidden after show(), retrying");
+            std::thread::sleep(std::time::Duration::from_millis(60));
+            let _ = main.show();
+            final_visible = main.is_visible().unwrap_or(false);
+        }
+        log::info!("[picker] mode=disabled done, main.is_visible={final_visible}");
+        let _ = app.emit(
+            "picker://mode-changed",
+            &serde_json::json!({
+                "enabled": false,
+                "main_visible": final_visible,
+            }),
+        );
+        if !final_visible {
+            return Err("The main window could not be restored".into());
+        }
     }
     Ok(())
 }
@@ -264,7 +408,10 @@ pub fn set_picker_mode<R: Runtime>(app: AppHandle<R>, enabled: bool) -> Result<(
 /// cancel path so that a window left in `hidden` state under Accessory
 /// activation policy is brought back visibly on the screen.
 fn restore_main_geometry<R: Runtime>(app: &AppHandle<R>) {
-    let Some(main) = app.get_webview_window("main") else { return };
+    let Some(main) = app.get_webview_window("main") else {
+        return;
+    };
+    let _ = main.show();
     if let Some(geom_state) = app.try_state::<crate::AppState>() {
         if let Some(geom) = *geom_state.main_geom.lock() {
             let scale = main.scale_factor().unwrap_or(1.0);
@@ -289,16 +436,9 @@ fn restore_main_geometry<R: Runtime>(app: &AppHandle<R>) {
 
 #[tauri::command]
 pub fn capture_pixel(x: i32, y: i32) -> Result<PixelPayload, String> {
-    use xcap::Monitor;
-    let monitor = Monitor::from_point(x, y).map_err(|e| e.to_string())?;
-    let px = monitor
-        .capture_region(x.max(0) as u32, y.max(0) as u32, 1, 1)
-        .map_err(|e| e.to_string())?;
-    let buf = px.into_raw();
-    let (r, g, b) = match buf.as_slice() {
-        [r, g, b, ..] => (*r, *g, *b),
-        _ => (0, 0, 0),
-    };
+    let [r, g, b] = std::panic::catch_unwind(|| capture_pixel_rgb(x, y))
+        .map_err(|_| "Screen capture panicked".to_string())?
+        .ok_or_else(|| "Unable to capture the selected pixel".to_string())?;
     Ok(PixelPayload {
         hex: format!("#{:02X}{:02X}{:02X}", r, g, b),
         rgb: [r, g, b],
@@ -321,32 +461,63 @@ pub fn register_global_hotkey<R: Runtime>(
 /// The tap pushes left-click and Esc events into a shared queue that each
 /// pick session's dispatch loop drains.
 fn ensure_tap_running() -> Result<(), String> {
-    if TAP_QUEUE.get().is_some() {
-        return Ok(());
+    match TAP_STATE.compare_exchange(
+        TAP_NOT_STARTED,
+        TAP_STARTING,
+        Ordering::AcqRel,
+        Ordering::Acquire,
+    ) {
+        Ok(_) => {}
+        Err(TAP_RUNNING) | Err(TAP_STARTING) => return Ok(()),
+        Err(TAP_FAILED) => return Err("the global input hook has stopped".into()),
+        Err(_) => return Err("the global input hook is in an invalid state".into()),
     }
-    TAP_QUEUE
-        .set(Mutex::new(Vec::with_capacity(8)))
-        .map_err(|_| "tap queue already initialized")?;
-    std::thread::Builder::new()
+
+    TAP_QUEUE.get_or_init(|| Mutex::new(Vec::with_capacity(8)));
+    if let Err(e) = std::thread::Builder::new()
         .name("opencolor-rdev-tap".into())
         .spawn(|| {
             log::info!("[picker] rdev listen starting (process-wide singleton)");
             let queue = TAP_QUEUE.get().expect("queue initialized");
-            if let Err(e) = rdev::listen(move |event| {
-                if let Some(tap) = classify_event(event) {
-                    if let Ok(mut g) = queue.lock() {
-                        // Bound the queue so a runaway producer can't OOM us.
-                        if g.len() < 32 {
-                            g.push(tap);
+            let result = std::panic::catch_unwind(|| {
+                rdev::listen(move |event| {
+                    TAP_STATE.store(TAP_RUNNING, Ordering::Release);
+                    if let Some(tap) = classify_event(event) {
+                        if let Ok(mut g) = queue.lock() {
+                            // Bound the queue so a runaway producer can't OOM us.
+                            if g.len() < 32 {
+                                g.push(tap);
+                            }
                         }
                     }
-                }
-            }) {
-                log::error!("[picker] rdev listen error: {e:?}");
+                })
+            });
+            TAP_STATE.store(TAP_FAILED, Ordering::Release);
+            match result {
+                Ok(Err(e)) => log::error!("[picker] rdev listen error: {e:?}"),
+                Err(_) => log::error!("[picker] rdev listen panicked"),
+                Ok(Ok(())) => log::warn!("[picker] rdev listen exited unexpectedly"),
             }
-            log::info!("[picker] rdev listen exited");
         })
-        .map_err(|e| e.to_string())?;
+    {
+        TAP_STATE.store(TAP_FAILED, Ordering::Release);
+        return Err(e.to_string());
+    }
+
+    // rdev only returns when startup fails or the listener exits. Give those
+    // immediate failures a chance to surface before the main window is hidden.
+    std::thread::sleep(std::time::Duration::from_millis(120));
+    if TAP_STATE.load(Ordering::Acquire) == TAP_FAILED {
+        return Err("the global input hook could not be initialized".into());
+    }
+    TAP_STATE
+        .compare_exchange(
+            TAP_STARTING,
+            TAP_RUNNING,
+            Ordering::AcqRel,
+            Ordering::Acquire,
+        )
+        .ok();
     Ok(())
 }
 
@@ -361,7 +532,9 @@ fn classify_event(event: Event) -> Option<TapEvent> {
 
 /// Drain all events currently in the queue. Called by the dispatch loop.
 fn drain_tap_queue() -> Vec<TapEvent> {
-    let Some(q) = TAP_QUEUE.get() else { return Vec::new() };
+    let Some(q) = TAP_QUEUE.get() else {
+        return Vec::new();
+    };
     match q.lock() {
         Ok(mut g) => std::mem::take(&mut *g),
         Err(_) => Vec::new(),
@@ -370,51 +543,26 @@ fn drain_tap_queue() -> Vec<TapEvent> {
 
 // ----- capture loop -----
 
-fn spawn_capture_loop<R: Runtime>(app: AppHandle<R>, token: CancellationToken) {
-    tauri::async_runtime::spawn(async move {
-        let mut interval =
-            tokio::time::interval(tokio::time::Duration::from_millis(CAPTURE_INTERVAL_MS));
-        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-
+fn spawn_capture_loop(app: AppHandle<Wry>, token: CancellationToken) {
+    tauri::async_runtime::spawn_blocking(move || {
         log::info!("[picker] capture loop started");
         let mut seq: u64 = 0;
-
-        loop {
-            tokio::select! {
-                _ = token.cancelled() => {
-                    log::info!("[picker] capture loop cancelled after {} ticks", seq);
-                    break;
-                },
-                _ = interval.tick() => {
-                    seq += 1;
-                    let (px, py) = match cursor_physical() {
-                        Some(p) => p,
-                        None => {
-                            if seq % 60 == 1 { log::warn!("[picker] cursor_physical None"); }
-                            continue;
-                        }
-                    };
-                    let Some(rgb) = capture_pixel_rgb(px, py) else {
-                        if seq % 60 == 1 { log::warn!("[picker] capture_pixel_rgb None at #{}", seq); }
-                        continue;
-                    };
+        while !token.is_cancelled() {
+            seq += 1;
+            let sample = std::panic::catch_unwind(capture_cursor_pixel);
+            match sample {
+                Ok(Some((px, py, rgb))) => {
                     let payload = PixelPayload {
                         hex: format!("#{:02X}{:02X}{:02X}", rgb[0], rgb[1], rgb[2]),
                         rgb,
                         x: px,
                         y: py,
                     };
-                    if seq == 1 || seq % 60 == 1 {
-                        log::debug!("[picker] tick #{} pos=({},{}) rgb={:?}", seq, px, py, rgb);
-                    }
                     if let Err(e) = app.emit("picker://pixel", &payload) {
-                        if seq % 30 == 1 { log::warn!("[picker] emit picker://pixel failed: {e}"); }
+                        if seq % 30 == 1 {
+                            log::warn!("[picker] emit picker://pixel failed: {e}");
+                        }
                     }
-                    // Move the dedicated picker window so it sits flush against
-                    // the cursor's bottom-right corner. mouse_position returns
-                    // physical px; set_position takes logical px, so divide by
-                    // the picker's scale factor. Then clamp to the visible
-                    // screen region so it never escapes on multi-monitor setups.
                     if let Some(picker) = app.get_webview_window("picker") {
                         let scale = picker.scale_factor().unwrap_or(1.0);
                         let lx = ((px + 16) as f64 / scale).round() as i32;
@@ -423,14 +571,23 @@ fn spawn_capture_loop<R: Runtime>(app: AppHandle<R>, token: CancellationToken) {
                         let _ = picker.set_position(tauri::LogicalPosition::new(clx, cly));
                     }
                 }
+                Ok(None) if seq % 30 == 1 => {
+                    log::warn!("[picker] screen sample unavailable at tick {seq}");
+                }
+                Err(_) => {
+                    log::error!("[picker] screen capture panicked; keeping session alive");
+                }
+                _ => {}
             }
+            std::thread::sleep(std::time::Duration::from_millis(CAPTURE_INTERVAL_MS));
         }
+        log::info!("[picker] capture loop cancelled after {seq} ticks");
     });
 }
 
 /// Per-session dispatcher. Drains the shared tap queue while honoring the
 /// cancellation token. Runs on a blocking task because mpsc isn't awaitable.
-fn spawn_click_dispatch<R: Runtime>(app: AppHandle<R>, token: CancellationToken) {
+fn spawn_click_dispatch(app: AppHandle<Wry>, token: CancellationToken, session_id: u64) {
     tauri::async_runtime::spawn(async move {
         log::info!("[picker] click dispatch started");
         let mut last_button_down = std::time::Instant::now()
@@ -442,9 +599,16 @@ fn spawn_click_dispatch<R: Runtime>(app: AppHandle<R>, token: CancellationToken)
         let token_for_blocking = token.clone();
         let app_for_blocking = app.clone();
         tauri::async_runtime::spawn_blocking(move || {
+            let armed_at =
+                std::time::Instant::now() + std::time::Duration::from_millis(CLICK_ARM_DELAY_MS);
             loop {
                 if token_for_blocking.is_cancelled() {
                     log::info!("[picker] click dispatch cancelled");
+                    break;
+                }
+                if TAP_STATE.load(Ordering::Acquire) == TAP_FAILED {
+                    log::error!("[picker] global input hook stopped during session {session_id}");
+                    finish_session(&app_for_blocking, session_id, PickOutcome::Cancelled);
                     break;
                 }
                 let events = drain_tap_queue();
@@ -452,6 +616,9 @@ fn spawn_click_dispatch<R: Runtime>(app: AppHandle<R>, token: CancellationToken)
                     match event {
                         TapEvent::LeftClick => {
                             let now = std::time::Instant::now();
+                            if now < armed_at {
+                                continue;
+                            }
                             if now.duration_since(last_button_down).as_millis() < 80 {
                                 continue; // debounce
                             }
@@ -466,22 +633,29 @@ fn spawn_click_dispatch<R: Runtime>(app: AppHandle<R>, token: CancellationToken)
                                     };
                                     log::info!(
                                         "[picker] CLICK at ({},{}) picked {}",
-                                        x, y, payload.hex
+                                        x,
+                                        y,
+                                        payload.hex
                                     );
-                                    let _ = app_for_blocking.emit("picker://picked", &payload);
-                                    token_for_blocking.cancel(); // single pick → auto-stop
+                                    finish_session(
+                                        &app_for_blocking,
+                                        session_id,
+                                        PickOutcome::Picked(payload),
+                                    );
+                                    break;
                                 } else {
                                     log::warn!(
                                         "[picker] CLICK at ({},{}) but capture_pixel_rgb failed",
-                                        x, y
+                                        x,
+                                        y
                                     );
                                 }
                             }
                         }
                         TapEvent::Escape => {
                             log::info!("[picker] Esc pressed (rdev tap) → cancel");
-                            let _ = app_for_blocking.emit("picker://cancelled", ());
-                            token_for_blocking.cancel();
+                            finish_session(&app_for_blocking, session_id, PickOutcome::Cancelled);
+                            break;
                         }
                     }
                 }
@@ -520,7 +694,10 @@ fn clamp_to_screen(lx: i32, ly: i32, w: i32, h: i32) -> (i32, i32) {
 /// Center of the primary monitor in logical coordinates, sized to fit (w, h).
 fn primary_monitor_center(w: i32, h: i32) -> (i32, i32) {
     let monitors = xcap::Monitor::all().ok().unwrap_or_default();
-    if let Some(m) = monitors.into_iter().find(|m| m.is_primary().unwrap_or(false)) {
+    if let Some(m) = monitors
+        .into_iter()
+        .find(|m| m.is_primary().unwrap_or(false))
+    {
         let mp = m.x().unwrap_or(0);
         let ms = m.width().unwrap_or(0) as i32;
         let mtop = m.y().unwrap_or(0);
@@ -532,9 +709,12 @@ fn primary_monitor_center(w: i32, h: i32) -> (i32, i32) {
 
 fn capture_pixel_rgb(phys_x: i32, phys_y: i32) -> Option<[u8; 3]> {
     let monitor = xcap::Monitor::from_point(phys_x, phys_y).ok()?;
-    let px = monitor
-        .capture_region(phys_x.max(0) as u32, phys_y.max(0) as u32, 1, 1)
-        .ok()?;
+    // xcap expects coordinates relative to the selected monitor. Passing
+    // desktop-global coordinates works only on a primary monitor at (0, 0)
+    // and fails on displays placed to the left/above or after the primary.
+    let (local_x, local_y) =
+        monitor_local_point(phys_x, phys_y, monitor.x().ok()?, monitor.y().ok()?)?;
+    let px = monitor.capture_region(local_x, local_y, 1, 1).ok()?;
     let buf = px.into_raw();
     match buf.as_slice() {
         [r, g, b, ..] => Some([*r, *g, *b]),
@@ -542,10 +722,43 @@ fn capture_pixel_rgb(phys_x: i32, phys_y: i32) -> Option<[u8; 3]> {
     }
 }
 
+fn capture_cursor_pixel() -> Option<(i32, i32, [u8; 3])> {
+    let (x, y) = cursor_physical()?;
+    capture_pixel_rgb(x, y).map(|rgb| (x, y, rgb))
+}
+
+fn monitor_local_point(
+    global_x: i32,
+    global_y: i32,
+    monitor_x: i32,
+    monitor_y: i32,
+) -> Option<(u32, u32)> {
+    let local_x = global_x.checked_sub(monitor_x)?;
+    let local_y = global_y.checked_sub(monitor_y)?;
+    Some((u32::try_from(local_x).ok()?, u32::try_from(local_y).ok()?))
+}
+
 fn cursor_physical() -> Option<(i32, i32)> {
     use mouse_position::mouse_position::Mouse;
     match Mouse::get_mouse_position() {
         Mouse::Position { x, y } => Some((x, y)),
         Mouse::Error => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::monitor_local_point;
+
+    #[test]
+    fn converts_global_coordinates_for_offset_monitor() {
+        assert_eq!(monitor_local_point(2100, 250, 1920, 0), Some((180, 250)));
+        assert_eq!(monitor_local_point(-1200, 300, -1440, 0), Some((240, 300)));
+    }
+
+    #[test]
+    fn rejects_points_before_monitor_origin() {
+        assert_eq!(monitor_local_point(99, 100, 100, 100), None);
+        assert_eq!(monitor_local_point(100, 99, 100, 100), None);
     }
 }

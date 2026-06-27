@@ -27,6 +27,8 @@ pub struct PlatformInfo {
     pub os: &'static str,
     pub display_server: Option<String>,
     pub permission: PermissionState,
+    pub can_capture_screen: bool,
+    pub can_listen_global_input: bool,
     pub can_pick_screen: bool,
 }
 
@@ -38,7 +40,11 @@ pub fn preflight() -> PermissionState {
     }
 
     match xcap::Monitor::all() {
-        Ok(monitors) if !monitors.is_empty() => PermissionState::Ok,
+        Ok(monitors) if !monitors.is_empty() && global_input_available() => PermissionState::Ok,
+        Ok(monitors) if !monitors.is_empty() => {
+            log::warn!("Global input permission is unavailable");
+            PermissionState::Denied
+        }
         Ok(_) => PermissionState::Denied, // empty list usually means denied on macOS
         Err(e) => {
             log::warn!("xcap preflight failed: {e}");
@@ -49,12 +55,40 @@ pub fn preflight() -> PermissionState {
 }
 
 pub fn platform_info(permission: PermissionState) -> PlatformInfo {
+    let can_capture_screen = xcap::Monitor::all()
+        .map(|monitors| !monitors.is_empty())
+        .unwrap_or(false);
+    let can_listen_global_input = global_input_available();
     PlatformInfo {
         os: std::env::consts::OS,
         display_server: display_server(),
         permission,
-        can_pick_screen: permission == PermissionState::Ok,
+        can_capture_screen,
+        can_listen_global_input,
+        can_pick_screen: permission == PermissionState::Ok
+            && can_capture_screen
+            && can_listen_global_input,
     }
+}
+
+#[cfg(target_os = "macos")]
+fn global_input_available() -> bool {
+    #[link(name = "ApplicationServices", kind = "framework")]
+    extern "C" {
+        fn AXIsProcessTrusted() -> u8;
+    }
+
+    // AXIsProcessTrusted returns the CoreFoundation Boolean type (u8).
+    unsafe { AXIsProcessTrusted() != 0 }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn global_input_available() -> bool {
+    #[cfg(target_os = "linux")]
+    return !is_wayland_session();
+
+    #[cfg(not(target_os = "linux"))]
+    true
 }
 
 #[tauri::command]

@@ -2,6 +2,7 @@
   "name": "opencolor",
   "private": true,
   "version": "0.1.0",
+  "packageManager": "pnpm@9.15.9",
   "description": "Lightweight cross-platform color picker for VibeCoding.",
   "author": "Freakz2z <freak050321@gmail.com>",
   "license": "MIT",
@@ -26,6 +27,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "icons": "tauri icon assets/logo.svg",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
@@ -49,9 +52,11 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",
     "autoprefixer": "^10.4.20",
+    "jsdom": "^25.0.1",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.14",
     "typescript": "^5.6.3",
-    "vite": "^5.4.10"
+    "vite": "^5.4.10",
+    "vitest": "^2.1.5"
   }
 }
