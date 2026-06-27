@@ -767,6 +767,12 @@ fn primary_monitor_center(w: i32, h: i32) -> (i32, i32) {
     (100, 100)
 }
 
+/// Average the 3x3 patch centred on (phys_x, phys_y). 1x1 capture_region
+/// rounds the cursor's subpixel position to a single pixel, so two
+/// adjacent mouse positions can land on different pixels even though the
+/// screen content is uniform. 3x3 averaging makes the picker colour
+/// independent of integer-coordinate rounding. Falls back to a single
+/// pixel near monitor edges where the 3x3 region would overflow.
 fn capture_pixel_rgb(phys_x: i32, phys_y: i32) -> Option<[u8; 3]> {
     let monitor = xcap::Monitor::from_point(phys_x, phys_y).ok()?;
     // xcap expects coordinates relative to the selected monitor. Passing
@@ -774,12 +780,23 @@ fn capture_pixel_rgb(phys_x: i32, phys_y: i32) -> Option<[u8; 3]> {
     // and fails on displays placed to the left/above or after the primary.
     let (local_x, local_y) =
         monitor_local_point(phys_x, phys_y, monitor.x().ok()?, monitor.y().ok()?)?;
-    let px = monitor.capture_region(local_x, local_y, 1, 1).ok()?;
-    let buf = px.into_raw();
-    match buf.as_slice() {
-        [r, g, b, ..] => Some([*r, *g, *b]),
-        _ => None,
+    let (ox, oy, ow, oh) = match (local_x.checked_sub(1), local_y.checked_sub(1)) {
+        (Some(ox), Some(oy)) => (ox, oy, 3u32, 3u32),
+        // Edge: local coordinate at 0 — fall back to single-pixel sample.
+        _ => (local_x, local_y, 1, 1),
+    };
+    let img = monitor.capture_region(ox, oy, ow, oh).ok()?;
+    let n = (ow * oh).max(1);
+    let mut rs: u32 = 0;
+    let mut gs: u32 = 0;
+    let mut bs: u32 = 0;
+    for px in img.pixels() {
+        let [r, g, b, _a] = px.0;
+        rs += r as u32;
+        gs += g as u32;
+        bs += b as u32;
     }
+    Some([(rs / n) as u8, (gs / n) as u8, (bs / n) as u8])
 }
 
 fn capture_cursor_pixel() -> Option<(i32, i32, [u8; 3])> {

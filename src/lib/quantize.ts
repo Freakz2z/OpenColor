@@ -79,18 +79,14 @@ export function quantizeColors(
     boxes = [...boxes.slice(0, target), left, right, ...boxes.slice(target + 1)];
   }
 
-  // Compute each box's representative color (intensity-weighted average)
-  // and total pixel count.
+  // Compute each box's representative color (count-weighted average) and
+  // total pixel count.
   const result: QuantizedColor[] = boxes
     .filter((b) => b.length > 0)
     .map((box) => {
       let rSum = 0, gSum = 0, bSum = 0, nSum = 0;
       for (const p of box) {
-        // Use count as weight AND adjust for perceived brightness so dark
-        // pixels don't dominate large black backgrounds.
-        const lum = 0.2126 * p.r + 0.7152 * p.g + 0.0722 * p.b;
-        const w = p.n * (0.5 + lum / 255);
-        rSum += p.r * w; gSum += p.g * w; bSum += p.b * w; nSum += w;
+        rSum += p.r * p.n; gSum += p.g * p.n; bSum += p.b * p.n; nSum += p.n;
       }
       const r = Math.round(rSum / nSum);
       const g = Math.round(gSum / nSum);

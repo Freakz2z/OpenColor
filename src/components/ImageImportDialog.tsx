@@ -29,7 +29,7 @@ export function ImageImportDialog({ onAdd, onClose }: Props) {
     try {
       const src = URL.createObjectURL(file);
       setImageSrc(src);
-      const rgba = await loadImageRgba(file, 256);
+      const rgba = await loadImageRgba(file, 512);
       const result = quantizeColors(rgba, 12);
       setColors(result);
       setSelected(new Set(result.map((_, i) => i))); // pre-select all
