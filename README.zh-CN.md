@@ -12,7 +12,7 @@
 [![Tauri 2](https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=white)](https://tauri.app/)
 [![React 18](https://img.shields.io/badge/React-18-149ECA?logo=react&logoColor=white)](https://react.dev/)
 [![Rust](https://img.shields.io/badge/Rust-stable-DEA584?logo=rust&logoColor=white)](https://www.rust-lang.org/)
-[![平台：macOS · Windows · Linux](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2ea44f)](#%E5%B9%B3%E5%8F%B0%E6%94%AF%E6%8C%81)
+[![平台：macOS · Windows](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-macOS%20%C2%B7%20Windows-2ea44f)](#%E5%B9%B3%E5%8F%B0%E6%94%AF%E6%8C%81)
 
 [English](README.md) · [简体中文](README.zh-CN.md) · [贡献指南](CONTRIBUTING.md) · [发行版](https://github.com/Freakz2z/OpenColor/releases) · [更新日志](.github/RELEASE_NOTES_v0.2.0.md)
 
@@ -35,10 +35,29 @@
 | --- | --- |
 | macOS 12+ | 支持，需要屏幕录制和辅助功能权限。 |
 | Windows 10/11 | 支持。 |
-| Linux X11 | 支持。 |
-| Linux Wayland | 不支持，Wayland 会限制全局指针监听。 |
 
 屏幕取色不可用时，手动编辑、图片导入、调色板管理和导出功能仍可正常使用。
+
+## 安装
+
+从 [Releases 页面](https://github.com/Freakz2z/OpenColor/releases) 下载对应平台的安装包。macOS 的 `.dmg` **没有**经过 Apple 公证，因此首次打开时会弹出：
+
+> "无法验证 'OpenColor' 是否包含可能危害 Mac 安全或泄漏隐私的恶意软件。"
+
+对开源未签名的应用来说这是预期行为。绕过方式：
+
+1. 在 Finder 里把 `OpenColor.app` 从 DMG 拖进「应用程序」后，**右键**点击该 app，选择「打开方式 → 打开」，在弹窗里再点「打开」。
+2. macOS 会记住这次例外，之后双击就能正常启动。
+
+或者在终端执行：
+
+```bash
+xattr -dr com.apple.quarantine /Applications/OpenColor.app
+```
+
+Windows 上未签名的安装包会被 SmartScreen 拦截 —— 选择「更多信息 → 仍要运行」即可。
+
+首次启动后，请到 **系统设置 → 隐私与安全性** 给 OpenColor 授予「屏幕录制」和「辅助功能」权限，否则取色器无法读取屏幕像素。
 
 ## 开发
 
@@ -65,7 +84,7 @@ pnpm build
 pnpm tauri:build
 ```
 
-推送 `v*` 标签后，发布流水线会构建 Windows、Linux、Intel macOS 和 Apple Silicon macOS 安装包，并创建 GitHub Release 草稿。
+推送 `v*` 标签后，发布流水线会构建 Windows、Intel macOS 和 Apple Silicon macOS 安装包，并创建 GitHub Release 草稿。
 
 ## 技术栈
 
