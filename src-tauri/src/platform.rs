@@ -115,7 +115,7 @@ fn display_server() -> Option<String> {
         if std::env::var_os("DISPLAY").is_some() {
             return Some("x11".into());
         }
-        return None;
+        None
     }
 
     #[cfg(not(target_os = "linux"))]
