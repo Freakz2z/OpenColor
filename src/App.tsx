@@ -124,6 +124,45 @@ export default function App() {
     }
   }, [t]);
 
+  // Surface an error as a 3s status banner using an i18n key that expects
+  // an `{{error}}` interpolation. Centralised so every handler flashes the
+  // same way and the timeout lives in one place.
+  const flashError = useCallback((key: string, e: unknown) => {
+    setStatusMsg(t(key, { error: errMsg(e) }));
+    setTimeout(() => setStatusMsg(null), 3000);
+  }, [t]);
+
+  const runWithErrorToast = useCallback(async (
+    key: string,
+    fn: () => Promise<unknown>,
+  ) => {
+    try {
+      await fn();
+    } catch (e) {
+      flashError(key, e);
+    }
+  }, [flashError]);
+
+  // The CRUD handlers all share the same demo-vs-persisted branching:
+  // in demo mode mutate local state, otherwise call IPC + refresh().
+  // This collapses both branches into one call site so the IPC error
+  // path is impossible to forget.
+  const persistOrDemoEdit = useCallback(async (
+    isDemo: boolean,
+    demoUpdater: () => void,
+    persistCall: () => Promise<unknown>,
+    errorKey: string,
+  ) => {
+    if (isDemo) {
+      demoUpdater();
+      return;
+    }
+    await runWithErrorToast(errorKey, async () => {
+      await persistCall();
+      await refresh();
+    });
+  }, [refresh, runWithErrorToast]);
+
   useEffect(() => {
     if (isDemo) {
       setPermission('ok');
@@ -200,29 +239,29 @@ export default function App() {
   const handleCreatePalette = async () => {
     const name = await prompt(t('dialog.newPalette'), { placeholder: t('dialog.newPalettePlaceholder') });
     if (!name) return;
-    try {
-      if (isDemoRef.current) {
-        const p: Palette = {
-          id: crypto.randomUUID(),
-          name,
-          description: undefined,
-          colors: [],
-          created_at: Date.now(),
-          updated_at: Date.now(),
-        };
-        setPalettes((prev) => [...prev, p]);
-        setActiveId(p.id);
+    const newPalette: Palette = {
+      id: crypto.randomUUID(),
+      name,
+      description: undefined,
+      colors: [],
+      created_at: Date.now(),
+      updated_at: Date.now(),
+    };
+    let created: Palette = newPalette;
+    await persistOrDemoEdit(
+      isDemoRef.current,
+      () => {
+        setPalettes((prev) => [...prev, newPalette]);
+        setActiveId(newPalette.id);
         setView('detail');
-        return;
-      }
-      const p = await api.createPalette(name);
-      await refresh();
-      setActiveId(p.id);
-      setView('detail');
-    } catch (e) {
-      setStatusMsg(t('status.createFail', { error: errMsg(e) }));
-      setTimeout(() => setStatusMsg(null), 3000);
-    }
+      },
+      async () => {
+        created = await api.createPalette(name);
+        setActiveId(created.id);
+        setView('detail');
+      },
+      'status.createFail',
+    );
   };
 
   const handleOpenPalette = (id: string) => {
@@ -254,12 +293,16 @@ export default function App() {
     const body = t('dialog.deletePaletteBody', { name: p.name, count: p.colors.length });
     const ok = await confirm(t('dialog.deletePalette'), body);
     if (!ok) return;
-    if (isDemoRef.current) {
-      setPalettes((prev) => prev.filter((x) => x.id !== id));
-    } else {
-      await api.deletePalette(id);
-      await refresh();
-    }
+    await persistOrDemoEdit(
+      isDemoRef.current,
+      () => {
+        setPalettes((prev) => prev.filter((x) => x.id !== id));
+      },
+      async () => {
+        await api.deletePalette(id);
+      },
+      'status.createFail',
+    );
     if (activeId === id) {
       setActiveId(null);
       setView('list');
@@ -270,12 +313,16 @@ export default function App() {
     if (!active) return;
     const name = await prompt(t('dialog.renamePalette'), { defaultValue: active.name });
     if (!name) return;
-    if (isDemoRef.current) {
-      setPalettes((prev) => prev.map((x) => x.id === active.id ? { ...x, name, updated_at: Date.now() } : x));
-    } else {
-      await api.updatePalette(active.id, name);
-      await refresh();
-    }
+    await persistOrDemoEdit(
+      isDemoRef.current,
+      () => {
+        setPalettes((prev) => prev.map((x) => x.id === active.id ? { ...x, name, updated_at: Date.now() } : x));
+      },
+      async () => {
+        await api.updatePalette(active.id, name);
+      },
+      'status.createFail',
+    );
   };
 
   const handleStartPick = async () => {
@@ -378,18 +425,19 @@ export default function App() {
   const handleConfirmPick = async (color: Color) => {
     if (!active) { setPendingPick(null); return; }
     try {
-      if (isDemoRef.current) {
-        setPalettes((prev) => prev.map((p) => {
-          if (p.id !== active.id) return p;
-          return { ...p, colors: [...p.colors, color], updated_at: Date.now() };
-        }));
-      } else {
-        await api.addColor(active.id, color);
-        await refresh();
-      }
-    } catch (e) {
-      setStatusMsg(t('status.createFail', { error: errMsg(e) }));
-      setTimeout(() => setStatusMsg(null), 3000);
+      await persistOrDemoEdit(
+        isDemoRef.current,
+        () => {
+          setPalettes((prev) => prev.map((p) => {
+            if (p.id !== active.id) return p;
+            return { ...p, colors: [...p.colors, color], updated_at: Date.now() };
+          }));
+        },
+        async () => {
+          await api.addColor(active.id, color);
+        },
+        'status.createFail',
+      );
     } finally {
       setPendingPick(null);
     }
@@ -398,22 +446,23 @@ export default function App() {
   const handleAddManyColors = async (newColors: Color[]) => {
     if (!active || newColors.length === 0) { setImporting(false); return; }
     try {
-      if (isDemoRef.current) {
-        setPalettes((prev) => prev.map((p) => {
-          if (p.id !== active.id) return p;
-          return { ...p, colors: [...p.colors, ...newColors], updated_at: Date.now() };
-        }));
-      } else {
-        for (const c of newColors) {
-          await api.addColor(active.id, c);
-        }
-        await refresh();
-      }
+      await persistOrDemoEdit(
+        isDemoRef.current,
+        () => {
+          setPalettes((prev) => prev.map((p) => {
+            if (p.id !== active.id) return p;
+            return { ...p, colors: [...p.colors, ...newColors], updated_at: Date.now() };
+          }));
+        },
+        async () => {
+          for (const c of newColors) {
+            await api.addColor(active.id, c);
+          }
+        },
+        'status.createFail',
+      );
       setStatusMsg(t('status.addedColors', { count: newColors.length }));
       setTimeout(() => setStatusMsg(null), 2500);
-    } catch (e) {
-      setStatusMsg(t('status.createFail', { error: errMsg(e) }));
-      setTimeout(() => setStatusMsg(null), 3000);
     } finally {
       setImporting(false);
     }
@@ -421,12 +470,16 @@ export default function App() {
 
   const handleDeleteColor = async (colorId: string) => {
     if (!active) return;
-    if (isDemoRef.current) {
-      setPalettes((prev) => prev.map((p) => p.id === active.id ? { ...p, colors: p.colors.filter((c) => c.id !== colorId), updated_at: Date.now() } : p));
-      return;
-    }
-    await api.removeColor(active.id, colorId);
-    await refresh();
+    await persistOrDemoEdit(
+      isDemoRef.current,
+      () => {
+        setPalettes((prev) => prev.map((p) => p.id === active.id ? { ...p, colors: p.colors.filter((c) => c.id !== colorId), updated_at: Date.now() } : p));
+      },
+      async () => {
+        await api.removeColor(active.id, colorId);
+      },
+      'status.createFail',
+    );
   };
 
   // toolbar pieces
