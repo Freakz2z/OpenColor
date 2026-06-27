@@ -38,29 +38,6 @@ fn file_for(app: &AppHandle, id: &str) -> Result<PathBuf, Error> {
     Ok(dir(app)?.join(format!("{id}.json")))
 }
 
-/// Read every JSON file in the palettes dir (excluding `order.json`)
-/// and deserialize each into `T`. Kept as a generic helper for future
-/// use; current callers should prefer [`list_palettes_ordered`].
-#[allow(dead_code)]
-pub fn list_all<T: for<'de> Deserialize<'de>>(app: &AppHandle) -> Result<Vec<T>, Error> {
-    let d = dir(app)?;
-    let mut items: Vec<T> = Vec::new();
-    for entry in fs::read_dir(&d)? {
-        let entry = entry?;
-        let p = entry.path();
-        if p.extension().and_then(|s| s.to_str()) == Some("json")
-            && p.file_name().and_then(|s| s.to_str()) != Some("order.json")
-        {
-            let bytes = fs::read(&p)?;
-            match serde_json::from_slice::<T>(&bytes) {
-                Ok(item) => items.push(item),
-                Err(e) => log::warn!("skipping {}: {}", p.display(), e),
-            }
-        }
-    }
-    Ok(items)
-}
-
 /// Reorder palettes by writing an explicit id list to `order.json`.
 /// `list_palettes_ordered` consults this file when sorting; the file is
 /// auto-healed on delete and on missing ids, so callers never need to
