@@ -14,7 +14,7 @@ export function ImageImportDialog({ onAdd, onClose }: Props) {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [colors, setColors] = useState<QuantizedColor[]>([]);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [selected, setSelected] = useState<Set<number>>(() => new Set());
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);

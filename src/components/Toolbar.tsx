@@ -1,3 +1,4 @@
+import { Plus } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 interface ToolbarProps {
@@ -68,45 +69,3 @@ export function PlusButton({ onClick, title = 'New', children }: PlusButtonProps
     </button>
   );
 }
-
-import {
-  Plus,
-  Settings as SettingsIcon,
-  Trash,
-  Pencil,
-  X as XIcon,
-  Check as CheckIcon,
-  Copy as CopyIcon,
-  Crosshair,
-  ChevronLeft,
-  ChevronDown,
-  Palette as PaletteIcon,
-  Languages as LanguagesIcon,
-  Sun,
-  Moon,
-  Monitor,
-  Info,
-  Share2,
-  ArrowUpRight as ExportIcon,
-} from 'lucide-react';
-
-export {
-  Plus,
-  SettingsIcon,
-  Trash,
-  Pencil,
-  XIcon,
-  CheckIcon,
-  CopyIcon,
-  Crosshair,
-  ChevronLeft,
-  ChevronDown,
-  PaletteIcon,
-  LanguagesIcon,
-  Sun,
-  Moon,
-  Monitor,
-  Info,
-  Share2,
-  ExportIcon,
-};

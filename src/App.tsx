@@ -13,9 +13,17 @@ import { ConfirmDialog } from './components/ConfirmDialog';
 import { PaletteCard } from './components/PaletteCard';
 import {
   Toolbar, IconButton, PlusButton,
-  SettingsIcon, Trash, Pencil, ChevronLeft, Crosshair, Share2,
 } from './components/Toolbar';
-import { Image as ImageIcon, PlusCircle as PlusCircleIcon } from 'lucide-react';
+import {
+  Settings as SettingsIcon,
+  Trash,
+  Pencil,
+  ChevronLeft,
+  Crosshair,
+  Share2,
+  Image as ImageIcon,
+  PlusCircle as PlusCircleIcon,
+} from 'lucide-react';
 import { SettingsView } from './components/SettingsView';
 import { ImageImportDialog } from './components/ImageImportDialog';
 import { DEMO_PALETTES } from './lib/demoData';
@@ -311,7 +319,7 @@ export default function App() {
       try {
         await api.startPicking();
         setPicking(true);
-      } catch (e: any) {
+      } catch (e) {
         setPicking(false);
         setStatusMsg(t('status.pickFail', { error: e?.toString?.() ?? '' }));
         setTimeout(() => setStatusMsg(null), 3000);
