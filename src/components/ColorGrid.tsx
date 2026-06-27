@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Palette, Color, ColorFamily } from '../types';
 import { ColorCard } from './ColorCard';
@@ -14,13 +15,23 @@ interface Props {
 
 export function ColorGrid({ palette, onEdit, onDelete }: Props) {
   const { t } = useTranslation();
-  const grouped = new Map<ColorFamily, Color[]>();
-  for (const c of palette.colors) {
-    if (!grouped.has(c.family)) grouped.set(c.family, []);
-    grouped.get(c.family)!.push(c);
-  }
+  // Recompute the family buckets only when the underlying color list
+  // changes — every parent re-render would otherwise rebuild this Map
+  // and discard the JSX-children-equality optimizations on ColorCard.
+  const grouped = useMemo(() => {
+    const map = new Map<ColorFamily, Color[]>();
+    for (const c of palette.colors) {
+      const bucket = map.get(c.family);
+      if (bucket) bucket.push(c);
+      else map.set(c.family, [c]);
+    }
+    return map;
+  }, [palette.colors]);
 
-  const families = FAMILY_ORDER.filter((f) => grouped.has(f));
+  const families = useMemo(
+    () => FAMILY_ORDER.filter((f) => grouped.has(f)),
+    [grouped],
+  );
 
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto">

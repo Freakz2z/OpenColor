@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { listen } from '@tauri-apps/api/event';
 import type { Palette, PermissionState, PickedPixel, Color, Theme, PlatformInfo } from './types';
@@ -217,7 +217,7 @@ export default function App() {
   }, []);
 
   // In demo mode, simulate a "pick" by inserting a random color from the demo palette.
-  const active = palettes.find((p) => p.id === activeId) ?? null;
+  const active = useMemo(() => palettes.find((p) => p.id === activeId) ?? null, [palettes, activeId]);
 
   const handleDemoPick = useCallback(() => {
     if (!active) return;
@@ -422,7 +422,7 @@ export default function App() {
     await refresh();
   };
 
-  const handleConfirmPick = async (color: Color) => {
+  const handleConfirmPick = useCallback(async (color: Color) => {
     if (!active) { setPendingPick(null); return; }
     try {
       await persistOrDemoEdit(
@@ -441,9 +441,9 @@ export default function App() {
     } finally {
       setPendingPick(null);
     }
-  };
+  }, [active, persistOrDemoEdit]);
 
-  const handleAddManyColors = async (newColors: Color[]) => {
+  const handleAddManyColors = useCallback(async (newColors: Color[]) => {
     if (!active || newColors.length === 0) { setImporting(false); return; }
     try {
       await persistOrDemoEdit(
@@ -466,9 +466,9 @@ export default function App() {
     } finally {
       setImporting(false);
     }
-  };
+  }, [active, persistOrDemoEdit, t]);
 
-  const handleDeleteColor = async (colorId: string) => {
+  const handleDeleteColor = useCallback(async (colorId: string) => {
     if (!active) return;
     await persistOrDemoEdit(
       isDemoRef.current,
@@ -480,7 +480,7 @@ export default function App() {
       },
       'status.createFail',
     );
-  };
+  }, [active, persistOrDemoEdit]);
 
   // toolbar pieces
   const renderToolbar = () => {
