@@ -82,14 +82,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: ubuntu-22.04
-            args: ""
           - platform: windows-latest
             args: ""
           - platform: macos-15-intel
             args: "--target x86_64-apple-darwin"
           - platform: macos-latest
             args: "--target aarch64-apple-darwin"
+    # Linux artifacts are temporarily excluded — xcap 0.9.6 pins pipewire ^0.9
+    # which fails to compile against the libspa headers shipped on modern
+    # distros (struct spa_video_info_raw no longer has a `flags` field).
+    # Tracked upstream; will be re-enabled once xcap bumps its pipewire dep.
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v5

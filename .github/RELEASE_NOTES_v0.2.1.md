@@ -41,6 +41,10 @@ A small polish release — no new features, just better internals and a smoother
 - README header gained a shields.io badge row (Release, CI, License, Tauri/React/Rust, Platform) + extra nav links (Contributing, Releases, Changelog).
 - Logo pinned to 80×80 via inline `<img>`.
 
+### Known limitations
+
+- **Linux `.deb` / `.AppImage` are not shipped in this release.** The Linux build pulls `pipewire 0.9` / `libspa 0.9` through `xcap 0.9.6`, which fails to compile against the headers shipped on modern distros (struct `spa_video_info_raw` no longer has a `flags` field). The fix is upstream — once `xcap` bumps its `pipewire` constraint to allow `^0.10`, we'll cut a `v0.2.2` for Linux. macOS + Windows users are unaffected.
+
 ---
 
 ## 中文
@@ -78,6 +82,10 @@ A small polish release — no new features, just better internals and a smoother
 - `vitest` 8/8 全绿（`format`、`reorder`）。
 - README 头部加 shields.io 徽章行（Release、CI、License、Tauri/React/Rust、Platform）+ 额外导航链接（Contributing、Releases、Changelog）。
 - Logo 通过 inline `<img>` 钉死 80×80。
+
+### 已知限制
+
+- **本次不发布 Linux `.deb` / `.AppImage`。** Linux 构建通过 `xcap 0.9.6` 拉到 `pipewire 0.9` / `libspa 0.9`，这套版本在现代发行版的 libspa 头文件上反编译失败（`spa_video_info_raw` 结构体已经没有 `flags` 字段）。修复在上游 —— `xcap` 把 `pipewire` 约束放宽到允许 `^0.10` 后，我们会再切一个 `v0.2.2` 只补 Linux 产物。macOS + Windows 不受影响。
 
 ---
 
