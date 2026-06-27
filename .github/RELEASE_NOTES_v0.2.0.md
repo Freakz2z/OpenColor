@@ -32,10 +32,11 @@ The picker module has been rewritten to use a session-id + atomic state machine,
 
 A new `Release` GitHub Actions workflow builds and uploads installers for:
 
-- **Linux** (`.deb` / `.AppImage` on `ubuntu-22.04`)
 - **Windows** (`.msi` / `.exe` on `windows-latest`)
 - **macOS Intel** (`.dmg` x86_64 on `macos-15-intel`)
 - **macOS Apple Silicon** (`.dmg` aarch64 on `macos-latest`)
+
+> **Linux note**: the workflow is wired to also build `.deb` / `.AppImage` on `ubuntu-22.04`, but that job is currently failing in the upstream `libspa 0.9.2` crate (broken bindgen output against modern `rustc` — see `nashaofu/xcap` issue #247). Linux installers will follow in the next patch release once the upstream is fixed. The macOS / Windows builds in this release are unaffected.
 
 Pushing an annotated `v*` tag triggers the matrix build and auto-creates a draft release with all artefacts attached via `tauri-action`.
 
@@ -82,12 +83,13 @@ See the assets below for your platform. The draft is not yet published — revie
 
 ### 跨平台发布流水线（新增）
 
-全新的 `Release` GitHub Actions 工作流，覆盖 4 个目标平台：
+全新的 `Release` GitHub Actions 工作流，目前覆盖 3 个目标平台：
 
-- **Linux**（`ubuntu-22.04`，`.deb` / `.AppImage`）
 - **Windows**（`windows-latest`，`.msi` / `.exe`）
 - **macOS Intel**（`macos-15-intel`，x86_64 `.dmg`）
 - **macOS Apple Silicon**（`macos-latest`，aarch64 `.dmg`）
+
+> **Linux 说明**：workflow 里其实也配置了 `ubuntu-22.04` 的 `.deb` / `.AppImage` 任务，但目前该 job 在上游 `libspa 0.9.2` crate 编译失败（对现代 `rustc` 的 bindgen 输出有 bug，见 `nashaofu/xcap` issue #247）。Linux 安装包将在下个 patch 版本中跟上 —— 等上游修复后即刻补齐。本次的 macOS / Windows 构建不受影响。
 
 推送带注释的 `v*` tag 就会触发矩阵构建，并通过 `tauri-action` 自动创建草稿 release、附带全部产物。
 
