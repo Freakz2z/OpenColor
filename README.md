@@ -1,6 +1,6 @@
 <div align="center">
 
-![OpenColor](public/favicon.svg)
+<img src="public/favicon.svg" width="80" height="80" alt="OpenColor">
 
 # OpenColor
 
