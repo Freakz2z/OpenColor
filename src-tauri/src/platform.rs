@@ -93,12 +93,27 @@ fn global_input_available() -> bool {
 
 #[tauri::command]
 pub fn get_permission_state(state: State<'_, AppState>) -> PermissionState {
-    state.permission
+    *state.permission.lock()
+}
+
+/// Re-runs the preflight on demand. macOS only registers Screen Recording /
+/// Accessibility grants for a freshly-launched process, so this is mostly
+/// a no-op on first run. After the user toggles a permission in System
+/// Settings, however, the next call from the frontend (e.g. a re-click of
+/// the pick button) needs to clear the cached `Denied` state without
+/// forcing an app restart.
+#[tauri::command]
+pub fn refresh_permission_state(state: State<'_, AppState>) -> PermissionState {
+    let fresh = preflight();
+    let cached = *state.permission.lock();
+    log::info!("[permission] refresh: {cached:?} -> {fresh:?}");
+    *state.permission.lock() = fresh;
+    fresh
 }
 
 #[tauri::command]
 pub fn get_platform_info(state: State<'_, AppState>) -> PlatformInfo {
-    platform_info(state.permission)
+    platform_info(*state.permission.lock())
 }
 
 fn display_server() -> Option<String> {

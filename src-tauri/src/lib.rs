@@ -15,7 +15,7 @@ use tauri::Manager;
 
 pub struct AppState {
     pub picker: Arc<Mutex<picker::PickerSession>>,
-    pub permission: platform::PermissionState,
+    pub permission: Arc<Mutex<platform::PermissionState>>,
     pub main_geom: Arc<Mutex<Option<MainWindowGeometry>>>,
 }
 
@@ -45,7 +45,7 @@ pub fn run() {
         )
         .manage(AppState {
             picker: Arc::new(Mutex::new(picker::PickerSession::idle())),
-            permission,
+            permission: Arc::new(Mutex::new(permission)),
             main_geom: Arc::new(Mutex::new(None)),
         })
         .invoke_handler(tauri::generate_handler![
@@ -61,13 +61,14 @@ pub fn run() {
             picker::stop_picking,
             picker::capture_pixel,
             platform::get_permission_state,
+            platform::refresh_permission_state,
             platform::get_platform_info,
             shell::open_system_settings,
         ])
         .setup(|app| {
             log::info!(
                 "[app] OpenColor setup() running, permission={:?}",
-                app.state::<AppState>().permission
+                *app.state::<AppState>().permission.lock()
             );
             picker::register_global_hotkey(app.handle())?;
             Ok(())

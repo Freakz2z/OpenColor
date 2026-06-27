@@ -134,11 +134,9 @@ pub struct PixelPayload {
 
 #[tauri::command]
 pub async fn start_picking(app: AppHandle<Wry>, state: State<'_, AppState>) -> Result<(), String> {
-    log::info!(
-        "[picker] start_picking called, permission={:?}",
-        state.permission
-    );
-    match state.permission {
+    let permission = *state.permission.lock();
+    log::info!("[picker] start_picking called, permission={permission:?}");
+    match permission {
         crate::platform::PermissionState::Ok => {}
         crate::platform::PermissionState::Denied => {
             log::warn!("[picker] start_picking blocked: permission denied");

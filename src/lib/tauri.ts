@@ -23,5 +23,6 @@ export const api = {
     invoke<PickedPixel>('capture_pixel', { x, y }),
 
   getPermissionState: () => invoke<PermissionState>('get_permission_state'),
+  refreshPermissionState: () => invoke<PermissionState>('refresh_permission_state'),
   getPlatformInfo: () => invoke<PlatformInfo>('get_platform_info'),
 };

@@ -288,9 +288,22 @@ export default function App() {
         return;
       }
       if (permission !== 'ok') {
-        setStatusMsg(t('status.pickUnavailable'));
-        setTimeout(() => setStatusMsg(null), 3000);
-        return;
+        // The cached permission may be stale — the user might have just
+        // toggled Screen Recording on in System Settings. Re-check Rust
+        // before bouncing, so they don't have to restart the app.
+        let fresh: PermissionState = permission;
+        try {
+          fresh = await api.refreshPermissionState();
+        } catch (e) {
+          console.warn('[pick] refreshPermissionState failed:', e);
+        }
+        if (fresh === 'ok') {
+          setPermission('ok');
+        } else {
+          setStatusMsg(t('status.pickUnavailable'));
+          setTimeout(() => setStatusMsg(null), 3000);
+          return;
+        }
       }
       // Rust starts the input hook, creates the session and changes window
       // mode as one operation. A failed start therefore cannot strand the
