@@ -38,27 +38,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-      - name: Install Linux deps
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libssl-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libpipewire-0.3-dev \
-            libgbm-dev \
-            libx11-dev \
-            libxtst-dev \
-            libxcb-cursor0 \
-            libxcb-cursor-dev
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
@@ -88,10 +73,6 @@ jobs:
             args: "--target x86_64-apple-darwin"
           - platform: macos-latest
             args: "--target aarch64-apple-darwin"
-    # Linux artifacts are temporarily excluded — xcap 0.9.6 pins pipewire ^0.9
-    # which fails to compile against the libspa headers shipped on modern
-    # distros (struct spa_video_info_raw no longer has a `flags` field).
-    # Tracked upstream; will be re-enabled once xcap bumps its pipewire dep.
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v5
@@ -103,21 +84,6 @@ jobs:
           node-version: 22
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libssl-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libpipewire-0.3-dev \
-            libgbm-dev \
-            libx11-dev \
-            libxtst-dev \
-            libxcb-cursor0 \
-            libxcb-cursor-dev
       - run: pnpm install --frozen-lockfile
       - uses: tauri-apps/tauri-action@v0
         env:

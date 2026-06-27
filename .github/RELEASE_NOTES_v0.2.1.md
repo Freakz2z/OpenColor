@@ -13,7 +13,7 @@ A small polish release — no new features, just better internals and a smoother
 
 - **Smoother picker drag** — the 30 Hz capture loop now skips `set_position` and `picker://pixel` emit when the cursor hasn't actually moved or the pixel under it hasn't changed. The picker card no longer fights the IPC + window-manager roundtrip on every tick; stationary moments do zero JS work.
 - **macOS permission re-check on demand** — the "Open System Settings" button on the permission banner now uses a custom Rust command that bypasses the `tauri-plugin-opener` URL scheme scope, so the deep link actually opens Settings. Clicking the pick button after granting Screen Recording no longer requires an app restart — Rust re-runs the preflight and updates the cached permission state in place.
-- **Release workflow hardened** — the release job now `needs` two new gate jobs (frontend vitest/build + rust fmt/check/clippy/test on a 3-OS matrix). Bad code can no longer ship to the GitHub Release.
+- **Release workflow hardened** — the release job now `needs` two new gate jobs (frontend vitest/build + rust fmt/check/clippy/test on a 2-OS matrix). Bad code can no longer ship to the GitHub Release.
 
 ### Optimizations
 
@@ -41,10 +41,6 @@ A small polish release — no new features, just better internals and a smoother
 - README header gained a shields.io badge row (Release, CI, License, Tauri/React/Rust, Platform) + extra nav links (Contributing, Releases, Changelog).
 - Logo pinned to 80×80 via inline `<img>`.
 
-### Known limitations
-
-- **Linux `.deb` / `.AppImage` are not shipped in this release.** The Linux build pulls `pipewire 0.9` / `libspa 0.9` through `xcap 0.9.6`, which fails to compile against the headers shipped on modern distros (struct `spa_video_info_raw` no longer has a `flags` field). The fix is upstream — once `xcap` bumps its `pipewire` constraint to allow `^0.10`, we'll cut a `v0.2.2` for Linux. macOS + Windows users are unaffected.
-
 ---
 
 ## 中文
@@ -55,7 +51,7 @@ A small polish release — no new features, just better internals and a smoother
 
 - **取色器拖动更顺** —— 30Hz 的捕获循环现在会在光标位置或像素颜色未变时，跳过 `set_position` 和 `picker://pixel` 事件分发。取色卡不再每个 tick 都跟 IPC + 窗口管理器抢资源，光标静止时主线程零 JS 工作。
 - **macOS 权限按需重检** —— 权限横幅上的「打开系统设置」按钮改用一个自定义 Rust 命令，绕开 `tauri-plugin-opener` 的 URL scheme 限制，深链能真正打开 Settings。在「屏幕录制」授权后再次点击取色按钮不再需要重启 App —— Rust 会现场重跑 preflight 并就地更新缓存的权限状态。
-- **发布流程加固** —— Release job 现在 `needs` 两个新 gate job（前端 vitest/build + Rust 在 3 平台跑 fmt/check/clippy/test）。有问题的代码不会再溜进 GitHub Release。
+- **发布流程加固** —— Release job 现在 `needs` 两个新 gate job（前端 vitest/build + Rust 在 2 平台跑 fmt/check/clippy/test）。有问题的代码不会再溜进 GitHub Release。
 
 ### 性能优化
 
@@ -82,10 +78,6 @@ A small polish release — no new features, just better internals and a smoother
 - `vitest` 8/8 全绿（`format`、`reorder`）。
 - README 头部加 shields.io 徽章行（Release、CI、License、Tauri/React/Rust、Platform）+ 额外导航链接（Contributing、Releases、Changelog）。
 - Logo 通过 inline `<img>` 钉死 80×80。
-
-### 已知限制
-
-- **本次不发布 Linux `.deb` / `.AppImage`。** Linux 构建通过 `xcap 0.9.6` 拉到 `pipewire 0.9` / `libspa 0.9`，这套版本在现代发行版的 libspa 头文件上反编译失败（`spa_video_info_raw` 结构体已经没有 `flags` 字段）。修复在上游 —— `xcap` 把 `pipewire` 约束放宽到允许 `^0.10` 后，我们会再切一个 `v0.2.2` 只补 Linux 产物。macOS + Windows 不受影响。
 
 ---
 
