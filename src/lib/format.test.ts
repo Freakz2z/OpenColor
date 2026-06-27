@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hexToRgb, isValidHex, classifyFamily, rgbToHex } from './format';
+import { hexToRgb, isValidHex, classifyFamily, rgbToHex, errMsg } from './format';
 
 describe('format', () => {
   it('hexToRgb parses 6-char hex', () => {
@@ -24,5 +24,13 @@ describe('format', () => {
   it('rgbToHex round-trips with hexToRgb', () => {
     const hex = '#A1B2C3';
     expect(rgbToHex(...hexToRgb(hex))).toBe(hex);
+  });
+
+  it('errMsg narrows unknown to a usable string', () => {
+    expect(errMsg(new Error('boom'))).toBe('boom');
+    expect(errMsg('boom')).toBe('boom');
+    expect(errMsg(42)).toBe('42');
+    expect(errMsg(null)).toBe('null');
+    expect(errMsg(undefined)).toBe('undefined');
   });
 });

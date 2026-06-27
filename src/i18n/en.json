@@ -41,6 +41,7 @@
     "emptyHint": "Empty — open and start picking"
   },
   "colorCard": {
+    "edit": "Edit color",
     "unnamed": "Unnamed",
     "copyHex": "Copy HEX",
     "copyRgb": "Copy RGB",

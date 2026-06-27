@@ -28,6 +28,7 @@ import { SettingsView } from './components/SettingsView';
 import { ImageImportDialog } from './components/ImageImportDialog';
 import { DEMO_PALETTES } from './lib/demoData';
 import { reorderIds } from './lib/reorder';
+import { errMsg } from './lib/format';
 
 type Dialog =
   | { kind: 'prompt'; title: string; placeholder?: string; defaultValue?: string; resolve: (v: string | null) => void }
@@ -119,7 +120,7 @@ export default function App() {
       const list = await api.listPalettes();
       setPalettes(list);
     } catch (e) {
-      setStatusMsg(t('status.loadedFail', { error: (e as Error).message }));
+      setStatusMsg(t('status.loadedFail', { error: errMsg(e) }));
     }
   }, [t]);
 
@@ -219,7 +220,7 @@ export default function App() {
       setActiveId(p.id);
       setView('detail');
     } catch (e) {
-      setStatusMsg(t('status.createFail', { error: (e as Error).message }));
+      setStatusMsg(t('status.createFail', { error: errMsg(e) }));
       setTimeout(() => setStatusMsg(null), 3000);
     }
   };
@@ -321,7 +322,7 @@ export default function App() {
         setPicking(true);
       } catch (e) {
         setPicking(false);
-        setStatusMsg(t('status.pickFail', { error: e?.toString?.() ?? '' }));
+        setStatusMsg(t('status.pickFail', { error: errMsg(e) }));
         setTimeout(() => setStatusMsg(null), 3000);
       }
     } finally {
@@ -387,7 +388,7 @@ export default function App() {
         await refresh();
       }
     } catch (e) {
-      setStatusMsg(t('status.createFail', { error: (e as Error).message }));
+      setStatusMsg(t('status.createFail', { error: errMsg(e) }));
       setTimeout(() => setStatusMsg(null), 3000);
     } finally {
       setPendingPick(null);
@@ -411,7 +412,7 @@ export default function App() {
       setStatusMsg(t('status.addedColors', { count: newColors.length }));
       setTimeout(() => setStatusMsg(null), 2500);
     } catch (e) {
-      setStatusMsg(t('status.createFail', { error: (e as Error).message }));
+      setStatusMsg(t('status.createFail', { error: errMsg(e) }));
       setTimeout(() => setStatusMsg(null), 3000);
     } finally {
       setImporting(false);

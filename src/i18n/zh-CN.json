@@ -41,6 +41,7 @@
     "emptyHint": "空 — 打开后开始取色"
   },
   "colorCard": {
+    "edit": "编辑颜色",
     "unnamed": "未命名",
     "copyHex": "复制 HEX",
     "copyRgb": "复制 RGB",

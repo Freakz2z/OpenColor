@@ -1,5 +1,11 @@
 import type { ColorFamily } from '../types';
 
+export function errMsg(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === 'string') return e;
+  return String(e);
+}
+
 export function hexToRgb(hex: string): [number, number, number] {
   const m = hex.replace('#', '').match(/.{2}/g);
   if (!m) return [0, 0, 0];

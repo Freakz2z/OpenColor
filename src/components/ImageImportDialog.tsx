@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Image as ImageIcon, X as XIcon } from 'lucide-react';
 import type { Color } from '../types';
-import { classifyFamily } from '../lib/format';
+import { classifyFamily, errMsg } from '../lib/format';
 import { loadImageRgba, quantizeColors, type QuantizedColor } from '../lib/quantize';
 
 interface Props {
@@ -34,7 +34,7 @@ export function ImageImportDialog({ onAdd, onClose }: Props) {
       setColors(result);
       setSelected(new Set(result.map((_, i) => i))); // pre-select all
     } catch (err) {
-      setError(t('imageImport.failLoad', { error: (err as Error).message }));
+      setError(t('imageImport.failLoad', { error: errMsg(err) }));
     } finally {
       setExtracting(false);
       // Reset so re-selecting same file fires onChange.
