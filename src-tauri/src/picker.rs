@@ -51,6 +51,27 @@ const TAP_STARTING: u8 = 1;
 const TAP_RUNNING: u8 = 2;
 const TAP_FAILED: u8 = 3;
 
+/// Caches the picker's last screen position so the capture loop can skip
+/// `set_position()` when the cursor hasn't moved enough to matter. Every
+/// `set_position` call goes through Tauri's IPC layer, then the platform
+/// window manager (`setWindowPos` / `[NSWindow setFrameOrigin]` /
+/// `gdk_window_move`); doing that 30 times a second is the main source
+/// of the perceived lag while moving the picker across the screen.
+static LAST_PICKER_POS: OnceLock<Mutex<Option<(i32, i32)>>> = OnceLock::new();
+fn last_picker_pos() -> &'static Mutex<Option<(i32, i32)>> {
+    LAST_PICKER_POS.get_or_init(|| Mutex::new(None))
+}
+
+/// Caches the last emitted RGB so we don't re-emit `picker://pixel` for a
+/// pixel the picker card is already showing. At 30 Hz, the cursor is often
+/// still for several consecutive ticks — without this, every tick triggers
+/// a JS `textContent` write and a swatch background repaint in the picker
+/// webview, which competes with the window move for the main thread.
+static LAST_PICKER_RGB: OnceLock<Mutex<Option<[u8; 3]>>> = OnceLock::new();
+fn last_picker_rgb() -> &'static Mutex<Option<[u8; 3]>> {
+    LAST_PICKER_RGB.get_or_init(|| Mutex::new(None))
+}
+
 pub struct PickerSession {
     token: Option<CancellationToken>,
     session_id: u64,
@@ -216,6 +237,16 @@ fn finish_session(app: &AppHandle<Wry>, session_id: u64, outcome: PickOutcome) {
     let Some(cleanup) = cleanup else {
         return;
     };
+
+    // Reset the debounce caches so the next picking session doesn't think
+    // its first move / first pixel is identical to the last one we already
+    // emitted in the previous session.
+    if let Ok(mut g) = last_picker_pos().lock() {
+        *g = None;
+    }
+    if let Ok(mut g) = last_picker_rgb().lock() {
+        *g = None;
+    }
 
     cleanup.token.cancel();
     if let Some(session_app) = cleanup.app {
@@ -550,15 +581,34 @@ fn spawn_capture_loop(app: AppHandle<Wry>, token: CancellationToken) {
             let sample = std::panic::catch_unwind(capture_cursor_pixel);
             match sample {
                 Ok(Some((px, py, rgb))) => {
-                    let payload = PixelPayload {
-                        hex: format!("#{:02X}{:02X}{:02X}", rgb[0], rgb[1], rgb[2]),
-                        rgb,
-                        x: px,
-                        y: py,
+                    // Skip the picker window move and the JS event when nothing
+                    // visible has changed since the last tick. At 30 Hz the cursor
+                    // is often stationary for several ticks, and the picker
+                    // card itself stays centered; emitting + set_position on every
+                    // tick goes through Tauri's IPC and the platform window
+                    // manager, which competes with the picker webview for the
+                    // main thread and is the dominant cause of perceived lag.
+                    let rgb_changed = match last_picker_rgb().lock() {
+                        Ok(g) => match g.as_ref() {
+                            Some(prev) => *prev != rgb,
+                            None => true,
+                        },
+                        Err(_) => true,
                     };
-                    if let Err(e) = app.emit("picker://pixel", &payload) {
-                        if seq % 30 == 1 {
-                            log::warn!("[picker] emit picker://pixel failed: {e}");
+                    if rgb_changed {
+                        let payload = PixelPayload {
+                            hex: format!("#{:02X}{:02X}{:02X}", rgb[0], rgb[1], rgb[2]),
+                            rgb,
+                            x: px,
+                            y: py,
+                        };
+                        if let Err(e) = app.emit("picker://pixel", &payload) {
+                            if seq % 30 == 1 {
+                                log::warn!("[picker] emit picker://pixel failed: {e}");
+                            }
+                        }
+                        if let Ok(mut g) = last_picker_rgb().lock() {
+                            *g = Some(rgb);
                         }
                     }
                     if let Some(picker) = app.get_webview_window("picker") {
@@ -566,7 +616,19 @@ fn spawn_capture_loop(app: AppHandle<Wry>, token: CancellationToken) {
                         let lx = ((px + 16) as f64 / scale).round() as i32;
                         let ly = ((py + 16) as f64 / scale).round() as i32;
                         let (clx, cly) = clamp_to_screen(lx, ly, PICKER_W, PICKER_H);
-                        let _ = picker.set_position(tauri::LogicalPosition::new(clx, cly));
+                        let pos_changed = match last_picker_pos().lock() {
+                            Ok(g) => match g.as_ref() {
+                                Some(prev) => prev.0 != clx || prev.1 != cly,
+                                None => true,
+                            },
+                            Err(_) => true,
+                        };
+                        if pos_changed {
+                            let _ = picker.set_position(tauri::LogicalPosition::new(clx, cly));
+                            if let Ok(mut g) = last_picker_pos().lock() {
+                                *g = Some((clx, cly));
+                            }
+                        }
                     }
                 }
                 Ok(None) if seq % 30 == 1 => {
