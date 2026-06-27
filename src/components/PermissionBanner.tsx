@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import type { PermissionState, PlatformInfo } from '../types';
-import { openUrl } from '@tauri-apps/plugin-opener';
+import { invoke } from '@tauri-apps/api/core';
 
 interface Props {
   state: PermissionState;
@@ -55,7 +55,9 @@ export function PermissionBanner({ state, platform }: Props) {
       <div className="text-xs mt-1 text-secondary">{body}</div>
       {actionUrl && (
         <button
-          onClick={() => openUrl(actionUrl)}
+          onClick={() => invoke('open_system_settings', { url: actionUrl }).catch((e) => {
+            console.error('[PermissionBanner] open_system_settings failed:', e);
+          })}
           className="mt-2 px-3 py-1 text-xs bg-card hover:bg-card-hover text-primary rounded border border-default"
         >
           {actionLabel}

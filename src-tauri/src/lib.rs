@@ -6,6 +6,7 @@
 mod palette;
 mod picker;
 mod platform;
+mod shell;
 mod storage;
 
 use parking_lot::Mutex;
@@ -61,6 +62,7 @@ pub fn run() {
             picker::capture_pixel,
             platform::get_permission_state,
             platform::get_platform_info,
+            shell::open_system_settings,
         ])
         .setup(|app| {
             log::info!(
