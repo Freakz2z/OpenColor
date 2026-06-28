@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { listen } from '@tauri-apps/api/event';
 import type { Palette, PermissionState, PickedPixel, Color, Theme, PlatformInfo } from './types';
-import { api } from './lib/tauri';
+import { api, isTauriRuntime } from './lib/tauri';
 import { ColorGrid } from './components/ColorGrid';
 import { ColorEditor } from './components/ColorEditor';
 import { ColorConfirm } from './components/ColorConfirm';
@@ -20,7 +20,7 @@ import {
   Pencil,
   ChevronLeft,
   Crosshair,
-  Share2,
+  Copy as CopyIcon,
   Image as ImageIcon,
   PlusCircle as PlusCircleIcon,
 } from 'lucide-react';
@@ -29,6 +29,8 @@ import { ImageImportDialog } from './components/ImageImportDialog';
 import { DEMO_PALETTES } from './lib/demoData';
 import { reorderIds } from './lib/reorder';
 import { errMsg } from './lib/format';
+import { exportAsNaturalLanguage } from './lib/export';
+import { writeClipboardText } from './lib/clipboard';
 
 type Dialog =
   | { kind: 'prompt'; title: string; placeholder?: string; defaultValue?: string; resolve: (v: string | null) => void }
@@ -36,14 +38,22 @@ type Dialog =
   | null;
 
 type View = 'list' | 'detail' | 'settings';
+type ExportCopyState = 'idle' | 'copied' | 'failed';
 
 const THEME_KEY = 'opencolor.theme';
+const HAS_TAURI_RUNTIME = isTauriRuntime();
 
 function loadTheme(): Theme {
   if (typeof localStorage === 'undefined') return 'auto';
   const v = localStorage.getItem(THEME_KEY);
   if (v === 'dark' || v === 'light' || v === 'auto') return v;
   return 'auto';
+}
+
+function detectDemoMode(): boolean {
+  if (typeof window === 'undefined') return false;
+  const url = new URL(window.location.href);
+  return url.searchParams.get('demo') === '1' || !HAS_TAURI_RUNTIME;
 }
 
 function applyTheme(theme: Theme) {
@@ -62,11 +72,9 @@ function applyTheme(theme: Theme) {
 
 export default function App() {
   const { t } = useTranslation();
+  const [isDemoMode] = useState(detectDemoMode);
   const [palettes, setPalettes] = useState<Palette[]>(() => {
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      if (url.searchParams.get('demo') === '1') return DEMO_PALETTES;
-    }
+    if (detectDemoMode()) return DEMO_PALETTES;
     return [];
   });
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -76,12 +84,13 @@ export default function App() {
   const [picking, setPicking] = useState(false);
   const [pendingPick, setPendingPick] = useState<Color | null>(null);
   const [editingColor, setEditingColor] = useState<{ color: Color; isNew: boolean } | null>(null);
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useState<ExportCopyState | null>(null);
   const [importing, setImporting] = useState(false);
   const [theme, setThemeState] = useState<Theme>(loadTheme);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
-  const isDemo = palettes === DEMO_PALETTES;
+  const isDemo = isDemoMode;
+  const isBrowserPreview = isDemoMode && !HAS_TAURI_RUNTIME;
 
   const isDemoRef = useRef(isDemo);
   isDemoRef.current = isDemo;
@@ -166,7 +175,7 @@ export default function App() {
   useEffect(() => {
     if (isDemo) {
       setPermission('ok');
-      setStatusMsg(t('status.demo'));
+      setStatusMsg(t(isBrowserPreview ? 'status.browserPreview' : 'status.demo'));
       return;
     }
     refresh();
@@ -179,9 +188,10 @@ export default function App() {
         api.getPermissionState().then(setPermission).catch(() => setPermission('unsupported'));
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isBrowserPreview, isDemo, refresh, t]);
 
   useEffect(() => {
+    if (!HAS_TAURI_RUNTIME) return;
     const unPicked = listen<PickedPixel>('picker://picked', (e) => {
       const p = e.payload;
       setPicking(false);
@@ -218,6 +228,16 @@ export default function App() {
 
   // In demo mode, simulate a "pick" by inserting a random color from the demo palette.
   const active = useMemo(() => palettes.find((p) => p.id === activeId) ?? null, [palettes, activeId]);
+
+  const handleOpenExport = useCallback(async () => {
+    if (!active || active.colors.length === 0) return;
+    try {
+      await writeClipboardText(exportAsNaturalLanguage(active));
+      setExporting('copied');
+    } catch {
+      setExporting('failed');
+    }
+  }, [active]);
 
   const handleDemoPick = useCallback(() => {
     if (!active) return;
@@ -413,13 +433,15 @@ export default function App() {
       setEditingColor(null);
       return;
     }
-    if (editingColor?.isNew) {
-      await api.addColor(active.id, color);
-    } else {
-      await api.updateColor(active.id, color);
-    }
-    setEditingColor(null);
-    await refresh();
+    await runWithErrorToast('status.createFail', async () => {
+      if (editingColor?.isNew) {
+        await api.addColor(active.id, color);
+      } else {
+        await api.updateColor(active.id, color);
+      }
+      setEditingColor(null);
+      await refresh();
+    });
   };
 
   const handleConfirmPick = useCallback(async (color: Color) => {
@@ -455,9 +477,7 @@ export default function App() {
           }));
         },
         async () => {
-          for (const c of newColors) {
-            await api.addColor(active.id, c);
-          }
+          await api.addColors(active.id, newColors);
         },
         'status.createFail',
       );
@@ -550,11 +570,11 @@ export default function App() {
           )}
           <IconButton
             title={t('toolbar.export')}
-            onClick={() => active && active.colors.length > 0 && setExporting(true)}
+            onClick={() => { void handleOpenExport(); }}
             disabled={!active || active.colors.length === 0}
             testId="detail-export"
           >
-            <Share2 size={18} />
+            <CopyIcon size={18} />
           </IconButton>
           <IconButton
             title={t('toolbar.fromImage')}
@@ -657,7 +677,11 @@ export default function App() {
       )}
 
       {exporting && active && (
-        <ExportDialog palette={active} onClose={() => setExporting(false)} />
+        <ExportDialog
+          palette={active}
+          initialCopyState={exporting}
+          onClose={() => setExporting(null)}
+        />
       )}
 
       {importing && active && (

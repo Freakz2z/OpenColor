@@ -94,6 +94,22 @@ pub fn add_color(app: AppHandle, palette_id: String, color: Color) -> Result<Pal
 }
 
 #[tauri::command]
+pub fn add_colors(
+    app: AppHandle,
+    palette_id: String,
+    colors: Vec<Color>,
+) -> Result<Palette, String> {
+    let mut p: Palette = storage::read_one(&app, &palette_id).map_err(|e| e.to_string())?;
+    if colors.is_empty() {
+        return Ok(p);
+    }
+    p.colors.extend(colors);
+    p.updated_at = now_ms();
+    storage::write_one(&app, &p.id, &p).map_err(|e| e.to_string())?;
+    Ok(p)
+}
+
+#[tauri::command]
 pub fn update_color(app: AppHandle, palette_id: String, color: Color) -> Result<Palette, String> {
     let mut p: Palette = storage::read_one(&app, &palette_id).map_err(|e| e.to_string())?;
     if let Some(slot) = p.colors.iter_mut().find(|c| c.id == color.id) {

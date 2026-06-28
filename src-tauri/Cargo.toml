@@ -1,6 +1,6 @@
 [package]
 name = "opencolor"
-version = "0.1.0"
+version = "0.2.2"
 description = "OpenColor — a lightweight cross-platform color picker for VibeCoding"
 authors = ["Freakz2z <freak050321@gmail.com>"]
 edition = "2021"
@@ -32,6 +32,7 @@ parking_lot = "0.12"
 mouse_position = "0.1"
 rdev = { version = "0.5", default-features = false }
 open = "5"
+tauri-plugin-clipboard-manager = "2"
 
 [profile.release]
 codegen-units = 1

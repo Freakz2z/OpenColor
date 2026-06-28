@@ -2,6 +2,7 @@ import type { Color } from '../types';
 import { textOn } from '../lib/format';
 import { useTranslation } from 'react-i18next';
 import { X as XIcon } from 'lucide-react';
+import { writeClipboardText } from '../lib/clipboard';
 
 interface Props {
   color: Color;
@@ -13,8 +14,8 @@ export function ColorCard({ color, onEdit, onDelete }: Props) {
   const { t } = useTranslation();
   const txt = textOn(color.hex);
 
-  const copy = (text: string) => {
-    navigator.clipboard.writeText(text);
+  const copy = async (text: string) => {
+    await writeClipboardText(text);
   };
 
   return (
@@ -33,14 +34,14 @@ export function ColorCard({ color, onEdit, onDelete }: Props) {
         </div>
         <div className="flex gap-2 mt-1 items-center">
           <button
-            onClick={() => copy(color.hex)}
+            onClick={() => { void copy(color.hex); }}
             className="text-[10px] text-muted hover:text-accent font-mono"
             title={t('colorCard.copyHex')}
           >
             HEX
           </button>
           <button
-            onClick={() => copy(`rgb(${color.rgb.join(', ')})`)}
+            onClick={() => { void copy(`rgb(${color.rgb.join(', ')})`); }}
             className="text-[10px] text-muted hover:text-accent font-mono"
             title={t('colorCard.copyRgb')}
           >

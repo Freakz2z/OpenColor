@@ -490,16 +490,20 @@ pub fn register_global_hotkey<R: Runtime>(
 /// The tap pushes left-click and Esc events into a shared queue that each
 /// pick session's dispatch loop drains.
 fn ensure_tap_running() -> Result<(), String> {
-    match TAP_STATE.compare_exchange(
-        TAP_NOT_STARTED,
-        TAP_STARTING,
-        Ordering::AcqRel,
-        Ordering::Acquire,
-    ) {
-        Ok(_) => {}
-        Err(TAP_RUNNING) | Err(TAP_STARTING) => return Ok(()),
-        Err(TAP_FAILED) => return Err("the global input hook has stopped".into()),
-        Err(_) => return Err("the global input hook is in an invalid state".into()),
+    loop {
+        let current = TAP_STATE.load(Ordering::Acquire);
+        match current {
+            TAP_RUNNING | TAP_STARTING => return Ok(()),
+            TAP_NOT_STARTED | TAP_FAILED => {
+                if TAP_STATE
+                    .compare_exchange(current, TAP_STARTING, Ordering::AcqRel, Ordering::Acquire)
+                    .is_ok()
+                {
+                    break;
+                }
+            }
+            _ => return Err("the global input hook is in an invalid state".into()),
+        }
     }
 
     TAP_QUEUE.get_or_init(|| Mutex::new(Vec::with_capacity(8)));

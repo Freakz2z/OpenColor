@@ -10,10 +10,10 @@
   "toolbar": {
     "settings": "Settings",
     "pick": "Pick",
-    "pickHotkey": "Pick (⌘⇧C)",
+    "pickHotkey": "Pick from screen",
     "pickDemo": "Pick (demo: random)",
     "stopPick": "Stop picking (Esc)",
-    "export": "Export",
+    "export": "Copy",
     "rename": "Rename",
     "deletePalette": "Delete palette",
     "back": "Back",
@@ -26,7 +26,7 @@
     "noPalettesHint": "Create your first palette to get started",
     "openExistingHint": "Pick a palette from the toolbar",
     "noColors": "No colors yet",
-    "noColorsHint": "Press ⌘⇧C to start picking from anywhere on screen",
+    "noColorsHint": "Use the picker button to sample any color on screen",
     "notFound": "Palette not found",
     "backToList": "Back to list"
   },
@@ -90,6 +90,8 @@
     "close": "Close",
     "copy": "Copy to clipboard",
     "copied": "✓ Copied",
+    "autoCopied": "Copied to clipboard automatically",
+    "copyFailed": "Auto-copy failed. Use the copy button below.",
     "chars": "Characters: {{count}}"
   },
   "imageImport": {
@@ -140,6 +142,7 @@
     "noPaletteForPick": "Create or open a palette first",
     "pickDemoHint": "Demo mode: picking will insert a random color from the demo set",
     "demo": "Demo mode: data is not persisted, UI preview only",
+    "browserPreview": "Browser preview: running without Tauri, data is not persisted and screen picking is simulated",
     "addedColors": "Added {{count}} color",
     "addedColors_other": "Added {{count}} colors"
   }

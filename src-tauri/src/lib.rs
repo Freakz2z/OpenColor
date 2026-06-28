@@ -34,6 +34,7 @@ pub fn run() {
     // Filter is set via the plugin's Builder::new() chain below.
     let permission = platform::preflight();
     tauri::Builder::default()
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -55,6 +56,7 @@ pub fn run() {
             palette::delete_palette,
             palette::reorder_palettes,
             palette::add_color,
+            palette::add_colors,
             palette::update_color,
             palette::remove_color,
             picker::start_picking,

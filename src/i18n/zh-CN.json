@@ -10,10 +10,10 @@
   "toolbar": {
     "settings": "设置",
     "pick": "取色",
-    "pickHotkey": "取色 (⌘⇧C)",
+    "pickHotkey": "从屏幕取色",
     "pickDemo": "取色 (演示：随机色)",
     "stopPick": "停止取色 (Esc)",
-    "export": "导出",
+    "export": "复制",
     "rename": "重命名",
     "deletePalette": "删除调色板",
     "back": "返回",
@@ -26,7 +26,7 @@
     "noPalettesHint": "创建你的第一个调色板开始使用",
     "openExistingHint": "在顶栏选择一个调色板",
     "noColors": "还没有颜色",
-    "noColorsHint": "按 ⌘⇧C 从屏幕任意位置开始取色",
+    "noColorsHint": "点击取色按钮即可从屏幕任意位置采样颜色",
     "notFound": "调色板不存在",
     "backToList": "返回列表"
   },
@@ -90,6 +90,8 @@
     "close": "关闭",
     "copy": "复制到剪贴板",
     "copied": "✓ 已复制",
+    "autoCopied": "已自动复制到剪贴板",
+    "copyFailed": "自动复制失败，请使用下方复制按钮。",
     "chars": "字符数: {{count}}"
   },
   "imageImport": {
@@ -140,6 +142,7 @@
     "noPaletteForPick": "先创建或打开一个调色板",
     "pickDemoHint": "演示模式：取色会从示例色板中随机选一个",
     "demo": "演示模式: 数据不会持久化, 仅用于预览 UI",
+    "browserPreview": "浏览器预览模式: 当前未运行在 Tauri 中, 数据不会持久化, 屏幕取色将使用模拟行为",
     "addedColors": "已添加 {{count}} 个颜色",
     "addedColors_other": "已添加 {{count}} 个颜色"
   }

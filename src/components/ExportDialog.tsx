@@ -1,24 +1,71 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check, Copy, X as XIcon } from 'lucide-react';
 import type { Palette } from '../types';
 import { exportAsNaturalLanguage } from '../lib/export';
+import { writeClipboardText } from '../lib/clipboard';
 
 interface Props {
   palette: Palette;
+  initialCopyState?: 'idle' | 'copied' | 'failed';
   onClose: () => void;
 }
 
-export function ExportDialog({ palette, onClose }: Props) {
+export function ExportDialog({ palette, initialCopyState = 'idle', onClose }: Props) {
   const { t } = useTranslation();
   const text = useMemo(() => exportAsNaturalLanguage(palette), [palette]);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState(initialCopyState === 'copied');
+  const [copyFailed, setCopyFailed] = useState(initialCopyState === 'failed');
+  const resetTimerRef = useRef<number | null>(null);
+
+  const resetCopiedLater = () => {
+    if (resetTimerRef.current != null) {
+      window.clearTimeout(resetTimerRef.current);
+    }
+    resetTimerRef.current = window.setTimeout(() => {
+      setCopied(false);
+      resetTimerRef.current = null;
+    }, 1500);
+  };
 
   const copy = async () => {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    try {
+      await writeClipboardText(text);
+      setCopyFailed(false);
+      setCopied(true);
+      resetCopiedLater();
+    } catch {
+      setCopied(false);
+      setCopyFailed(true);
+    }
   };
+
+  useEffect(() => {
+    setCopied(initialCopyState === 'copied');
+    setCopyFailed(initialCopyState === 'failed');
+    if (initialCopyState === 'copied') {
+      resetCopiedLater();
+      return () => {
+        if (resetTimerRef.current != null) {
+          window.clearTimeout(resetTimerRef.current);
+        }
+      };
+    }
+    if (initialCopyState === 'idle') {
+      void copy();
+    }
+    return () => {
+      if (resetTimerRef.current != null) {
+        window.clearTimeout(resetTimerRef.current);
+      }
+    };
+  }, [initialCopyState, text]);
+
+  const statusText = copyFailed
+    ? t('export.copyFailed')
+    : copied
+      ? t('export.autoCopied')
+      : t('export.chars', { count: text.length });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -44,7 +91,7 @@ export function ExportDialog({ palette, onClose }: Props) {
         />
         <div className="flex items-center gap-2 px-4 py-3 border-t border-default bg-toolbar">
           <span className="text-[10px] text-muted flex-1">
-            {t('export.chars', { count: text.length })}
+            {statusText}
           </span>
           <button
             onClick={onClose}

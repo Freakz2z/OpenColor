@@ -87,11 +87,11 @@ export function HslPicker({ hex, onChange }: Props) {
                 linear-gradient(to right, #fff, hsl(${h.toFixed(0)}, 100%, 50%))`;
 
   return (
-    <div className="space-y-2 select-none">
+    <div className="space-y-1.5 select-none">
       <div
         ref={svRef}
         onPointerDown={handleSvDown}
-        className="relative h-40 rounded-md cursor-crosshair touch-none"
+        className="relative h-32 rounded-md cursor-crosshair touch-none"
         style={{ backgroundImage: svBg }}
       >
         <div
@@ -102,7 +102,7 @@ export function HslPicker({ hex, onChange }: Props) {
       <div
         ref={hueRef}
         onPointerDown={handleHueDown}
-        className="relative h-3 rounded-full cursor-pointer touch-none"
+        className="relative h-2.5 rounded-full cursor-pointer touch-none"
         style={{ backgroundImage: hueBg }}
       >
         <div

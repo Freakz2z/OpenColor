@@ -21,6 +21,8 @@ pub enum Error {
     Tauri(#[from] tauri::Error),
     #[error("palette {0} not found")]
     NotFound(String),
+    #[error("invalid palette id: {0}")]
+    InvalidId(String),
 }
 
 const DIR: &str = "palettes";
@@ -35,6 +37,7 @@ pub fn dir(app: &AppHandle) -> Result<PathBuf, Error> {
 }
 
 fn file_for(app: &AppHandle, id: &str) -> Result<PathBuf, Error> {
+    validate_palette_id(id)?;
     Ok(dir(app)?.join(format!("{id}.json")))
 }
 
@@ -43,6 +46,9 @@ fn file_for(app: &AppHandle, id: &str) -> Result<PathBuf, Error> {
 /// auto-healed on delete and on missing ids, so callers never need to
 /// prune it manually.
 pub fn write_order(app: &AppHandle, ids: &[String]) -> Result<(), Error> {
+    for id in ids {
+        validate_palette_id(id)?;
+    }
     let path = order_file(app)?;
     let bytes = serde_json::to_vec_pretty(ids)?;
     let tmp = path.with_extension("json.tmp");
@@ -67,6 +73,22 @@ pub fn read_order(app: &AppHandle) -> Result<Vec<String>, Error> {
 
 fn order_file(app: &AppHandle) -> Result<PathBuf, Error> {
     Ok(dir(app)?.join("order.json"))
+}
+
+fn validate_palette_id(id: &str) -> Result<(), Error> {
+    if id.is_empty() {
+        return Err(Error::InvalidId("empty".into()));
+    }
+    if id.len() > 128 {
+        return Err(Error::InvalidId("too long".into()));
+    }
+    if id
+        .bytes()
+        .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    {
+        return Ok(());
+    }
+    Err(Error::InvalidId(id.into()))
 }
 
 /// Return all palettes, sorted according to `order.json` when present.
@@ -141,4 +163,22 @@ pub fn delete_one(app: &AppHandle, id: &str) -> Result<(), Error> {
         fs::remove_file(&path)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_palette_id;
+
+    #[test]
+    fn accepts_safe_palette_ids() {
+        assert!(validate_palette_id("palette-01").is_ok());
+        assert!(validate_palette_id("A_B_c-123").is_ok());
+    }
+
+    #[test]
+    fn rejects_path_traversal_and_invalid_ids() {
+        assert!(validate_palette_id("../palette").is_err());
+        assert!(validate_palette_id("palette/name").is_err());
+        assert!(validate_palette_id("").is_err());
+    }
 }

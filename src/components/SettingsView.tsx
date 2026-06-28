@@ -68,7 +68,7 @@ export function SettingsView({ onBack, theme, onThemeChange }: Props) {
           <div className="mt-3 text-xs text-muted space-y-1.5">
             <div className="flex items-center justify-between">
               <span>{t('settings.version')}</span>
-              <span className="font-mono text-primary">0.1.0</span>
+              <span className="font-mono text-primary">{__APP_VERSION__}</span>
             </div>
             <div className="flex items-center justify-between">
               <span>{t('settings.langLabel')}</span>
